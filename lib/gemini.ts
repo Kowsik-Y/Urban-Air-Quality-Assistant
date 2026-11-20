@@ -22,11 +22,10 @@ export function getGeminiClient(): GoogleGenerativeAI {
  * 5. gemini-3.8-flash: Next-gen preview
  */
 export const FALLBACK_MODELS = [
+  'gemini-3.5-flash',
+  'gemini-flash-lite-latest',
   'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
   'gemini-3.1-flash-lite-preview',
-  'gemini-flash-latest',
-  'gemini-3.8-flash',
 ];
 
 const DEFAULT_CONFIG: GenerationConfig = {
