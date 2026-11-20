@@ -24,15 +24,16 @@ export default function FloatingChatDrawer({
   // Dynamically generated greeting based on live telemetry
   const initialGreeting = useMemo(() => {
     if (!aqiData) {
-      return `Welcome to **AI AirSense**. Select a city in the header to initialize live CAAQMS telemetry.`;
+      return `Welcome to **AI AirSense**. Initializing live environmental telemetry for ${selectedCity}...`;
     }
-    return `Hello. I am **AI AirSense**, calibrated with live telemetry from **${aqiData.station}** in **${aqiData.city}**.
+    return `Hello. I am **AI AirSense**, calibrated with live telemetry from **${aqiData.station || aqiData.city}** in **${aqiData.city}**.
 
-Current reading: **AQI ${aqiData.aqi}** (${aqiData.category}) with dominant pollutant **${aqiData.dominantPollutant}**${aqiData.pm25 != null ? ` at ${aqiData.pm25} µg/m³` : ''
-      }.
+Current reading: **AQI ${aqiData.aqi}** (${aqiData.category}) with dominant pollutant **${aqiData.dominantPollutant}**${
+      aqiData.pm25 != null ? ` at ${aqiData.pm25} µg/m³` : ''
+    }.
 
 Context calibrated for: **${userProfile.replace(/_/g, ' ')}**. What would you like to know about navigating today's air quality?`;
-  }, [aqiData, userProfile]);
+  }, [aqiData, userProfile, selectedCity]);
 
   // Dynamically generated initial prompts derived from live sensor metrics
   const dynamicInitialPrompts = useMemo(() => {
@@ -72,7 +73,15 @@ Context calibrated for: **${userProfile.replace(/_/g, ' ')}**. What would you li
       );
       const savedSuggestions = getSessionStorage<string[]>(SESSION_KEYS.CHAT_SUGGESTIONS, []);
 
-      if (savedMsgs && savedMsgs.length > 0) {
+      // If saved messages only contain generic uninitialized greetings, refresh with live telemetry
+      const isStaleInitialGreeting =
+        savedMsgs &&
+        savedMsgs.length === 1 &&
+        (savedMsgs[0].content.includes('Select a city in the header') ||
+          savedMsgs[0].content.includes('Initializing live environmental telemetry') ||
+          (aqiData && !savedMsgs[0].content.includes(aqiData.city)));
+
+      if (savedMsgs && savedMsgs.length > 0 && !isStaleInitialGreeting) {
         setMessages(savedMsgs);
       } else {
         setMessages([{ role: 'assistant', content: initialGreeting }]);
@@ -84,7 +93,7 @@ Context calibrated for: **${userProfile.replace(/_/g, ' ')}**. What would you li
         setLlmSuggestions(savedSuggestions);
       }
     }
-  }, [initialGreeting]);
+  }, [initialGreeting, aqiData]);
 
   // Persist messages to sessionStorage whenever updated
   useEffect(() => {
@@ -125,12 +134,18 @@ Context calibrated for: **${userProfile.replace(/_/g, ' ')}**. What would you li
     }
   }, [isOpen, onToggle]);
 
-  // Sync initial message when aqiData or profile changes and no conversation has occurred yet
+  // Sync initial message when aqiData arrives, city changes, or profile changes and no conversation has occurred yet
   useEffect(() => {
-    if (messages.length === 0) {
-      setMessages([{ role: 'assistant', content: initialGreeting }]);
+    if (historyRef.current.length === 0) {
+      if (
+        messages.length === 0 ||
+        (messages.length === 1 && messages[0].role === 'assistant' && messages[0].content !== initialGreeting)
+      ) {
+        setMessages([{ role: 'assistant', content: initialGreeting }]);
+        setSessionStorage(SESSION_KEYS.CHAT_MESSAGES, [{ role: 'assistant', content: initialGreeting }]);
+      }
     }
-  }, [initialGreeting, messages.length]);
+  }, [initialGreeting, messages]);
 
   // Auto scroll
   useEffect(() => {
