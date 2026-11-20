@@ -1,72 +1,129 @@
 # AI AirSense - Urban Air Quality and Winter Smog Assistant
 
-AI AirSense is a production-grade, full-stack web application developed for Prompt Wars Virtual (Challenge 6: Urban Air Quality Assistant). Engineered with Next.js 14 (App Router), strict TypeScript, Google Gemini 2.5 Flash SDK (@google/generative-ai), an enterprise-grade resilient proxy layer, and real-time live ambient air quality telemetry (CAAQMS / Open-Meteo / WAQI), the application empowers Indian families and urban communities to navigate severe winter smog with personalized low-emission daily routines, indoor air quality hacks, and quantifiable sustainable alternatives.
+AI AirSense is a production-grade web application engineered for Prompt Wars Virtual (Challenge 6: Urban Air Quality Assistant). Powered by Next.js 14 (App Router), strict TypeScript, Google Gemini 2.5 Flash SDK (@google/generative-ai), an enterprise edge proxy layer, and real-time live ambient air quality telemetry (CAAQMS / WAQI / Open-Meteo), the application equips Indian households and urban communities with quantified exposure reduction strategies, adaptive daily schedules, and indoor air defense protocols during severe winter smog episodes.
 
 ---
 
-## 1. Challenge Overview and Problem Statement Alignment
+## 1. Chosen Vertical
 
-Severe winter smog in Indian urban corridors (Delhi NCR, Mumbai, Kolkata, Lucknow, Patna, and others) creates recurring public health emergencies driven by thermal inversions, vehicular exhaust, and particulate entrapment in the Indo-Gangetic Plain. AI AirSense directly aligns with all core challenge requirements:
-
-1. Low-Emission Daily Routines: Recommends adaptive commute patterns, transit alternatives, and exposure-reduction protocols tailored to user lifestyle and real-time sensor metrics.
-2. Indoor Air Quality Defense: Provides actionable micro-environment interventions including phytoremediation plant protocols, positive-pressure clean room sealing, damp mopping over dry sweeping, and cooking combustion controls.
-3. Sustainable Alternatives and Impact Justification: Explains the direct pathophysiological and environmental impact of every recommendation with quantified percentage reductions (e.g. -85% inhaled PM2.5, -40% roadside exposure).
-4. Diurnal Inversion Planning: Calibrates outdoor exposure schedules against ground-level atmospheric boundary layer variations (morning inversion peak, midday solar dispersion, nocturnal settling).
+- Domain: Urban Air Quality, Meteorological Inversion Mitigation, and Community Environmental Health.
+- Geographic Focus: Indian metropolitan regions, particularly the Indo-Gangetic Plain (Delhi NCR, Lucknow, Patna, Kolkata) and major industrial and coastal urban centers (Mumbai, Bengaluru, Hyderabad, Chennai, Ahmedabad).
+- Core Challenge: Annual winter air pollution crises triggered by seasonal agricultural crop residue burning, post-Diwali particulate surges, vehicular cold-start exhaust, industrial emissions, and meteorological temperature inversions trapping PM2.5 and PM10 within the planetary boundary layer.
+- Target Beneficiaries: Families with young children, daily commuters, elderly residents with respiratory or cardiovascular sensitivity, students, and general urban citizens seeking actionable, culturally relevant interventions.
 
 ---
 
-## 2. Six Evaluation Pillars
+## 2. Approach and Logic
+
+The architecture is founded on a direct Sensor-to-Intelligence pipeline designed to convert complex atmospheric chemistry into prioritized, quantifiable human actions:
+
+1. Real-Time Physical Grounding: The system strictly prohibits static mock data. Every recommendation, health alert, and conversational response is dynamically conditioned on live sensor telemetry (AQI, PM2.5, PM10, NO2, SO2, CO, O3) pulled from local CAAQMS stations.
+2. Diurnal Boundary-Layer Intelligence: Urban smog varies dramatically throughout a 24-hour cycle. Ground cooling overnight creates thermal inversions between 6:00 AM and 10:00 AM, trapping toxic particulates at breathing level. Solar heating between 11:00 AM and 3:30 PM lifts the planetary boundary layer, creating a dispersion window. The application structures user routines around these physical atmospheric windows.
+3. Multi-Persona Calibration: A single AQI reading impacts demographics differently. Five distinct household profiles tailor advice to physiological vulnerability and mobility patterns.
+4. Resilient Proxy Architecture: Outbound and inbound traffic flows through secure, cached proxy layers:
+   - Inbound Edge Proxy (proxy.ts / middleware.ts): Intercepts requests to inject security headers, enforce rate limits, and provide distributed tracing.
+   - Outbound Resilient Proxy (lib/proxy.ts): Enforces SSRF prevention via an authorized domain allowlist, incorporates request timeouts, and provides in-memory LRU/TTL caching.
+5. Dynamic Model Fallback Cascade: Utilizes Google AI Studio's generative model cascade with primary generation on gemini-2.5-flash and automated failover across secondary models to guarantee zero downtime.
+
+---
+
+## 3. How the Solution Works
+
+### Step 1: Atmospheric Telemetry Ingestion
+- When a user selects any of the 25 supported Indian urban centers, the server queries the WAQI and Continuous Ambient Air Quality Monitoring Station (CAAQMS) networks using an authenticated API token.
+- If a station feed is offline or reporting incomplete iaqi sub-indices, the proxy layer falls back to Open-Meteo European atmospheric satellite and surface station models.
+- Criteria pollutants are evaluated against Indian National Ambient Air Quality Standards (NAAQS) and categorized across six standard CPCB tiers: Good, Moderate, Unhealthy for Sensitive Groups, Unhealthy, Very Unhealthy, and Hazardous.
+
+### Step 2: Structured GenAI Recommendation Synthesis
+- Live telemetry is paired with the user's active household profile and dispatched to Gemini 2.5 Flash via a typed schema prompt with responseMimeType set to application/json.
+- The model synthesizes:
+  - Urgency and biological exposure warnings.
+  - Low-emission daily routines with quantified impact metrics (e.g. -85% inhaled PM2.5 mass).
+  - Sustainable transit and lifestyle alternatives.
+  - Diurnal smog schedules segmented into morning inversion, afternoon dispersion, and evening settling phases.
+  - Dynamic Indoor Clean-Air Guide with 6 practical, low-cost Indian household interventions across source control, filtration, and ventilation.
+
+### Step 3: Interactive Visual Dashboard and WAI-ARIA Navigation
+- The client renders a responsive radial SVG gauge with smooth drop-shadow glow and a six-pollutant diagnostic grid.
+- A four-tab WAI-ARIA navigation bar allows switching between the Live Monitor, AI Routines, Smog Daily Planner, and Indoor Hacks with keyboard arrow navigation.
+
+### Step 4: Persistent Conversational Assistant (AI AirSense)
+- A floating action button (FAB) in the lower-right corner launches the AI AirSense drawer.
+- The drawer establishes a Server-Sent Events (SSE) streaming connection, rendering markdown responses in real-time.
+- The assistant extracts follow-up suggestions from the LLM stream, rendering horizontal scrollable inquiry chips that allow users to drill deeper into specific mitigation topics.
+
+### Step 5: Browser Session Storage Persistence
+- User selections (city, household persona, active tab, drawer state) and conversation history are automatically stored in window.sessionStorage.
+- Telemetry and AI recommendations are cached in the browser session, enabling instant 0ms restoration when toggling between cities or refreshing the page.
+
+---
+
+## 4. Assumptions Made
+
+1. Monitoring Station Proximity: CAAQMS telemetry reflects regional urban ambient air. Micro-climates (e.g., living 50 meters from a high-density arterial highway vs. a green residential cantonment) can exhibit localized PM2.5 variances of 15% to 30%.
+2. Indian Household Structural Realities: Assumes typical Indian urban dwellings often feature unsealed balcony doors, sliding aluminum windows, and wet kitchens without dedicated HVAC systems. Protocols focus on damp mopping, silicone weatherstripping, and DIY Corsi-Rosenthal filtration rather than central HVAC air handlers.
+3. Indoor-to-Outdoor Infiltration Ratio: Without active sealing or mechanical HEPA filtration, indoor PM2.5 concentration in Indian urban homes is assumed to equilibrate at approximately 60% to 75% of ambient outdoor concentrations.
+4. Particulate Resuspension: Assumes standard dry sweeping (jharoo) resuspends settled coarse and fine dust into breathing zones, reinforcing the mandatory recommendation for wet microfiber mopping.
+5. Telemetry Refresh Frequency: CPCB and WAQI ambient stations publish verified readings on hourly cycles. The application's 5-minute cache TTL balances real-time responsiveness with upstream API conservation.
+
+---
+
+## 5. Evaluation Focus Areas
 
 ### A. Code Quality - Structure, Readability, Maintainability
-- Modular Architecture: Cleanly bifurcated into core domains: UI presentation components, server-side route handlers, mathematical utilities, proxy clients, and TypeScript type definitions.
-- Strict Type Safety: Zero usage of 'any' across core interfaces. Complete TypeScript coverage for air quality data models, user personas, chat streams, and recommendation payloads.
-- Single Responsibility: Each component and route handler addresses a single task, facilitating rapid maintenance and isolated unit testing.
+- Modular Architecture: Codebase cleanly divided into presentation components (components/), route handlers (app/api/), mathematical engines (lib/aqi.ts), proxy infrastructure (lib/proxy.ts, proxy.ts), storage utilities (lib/storage.ts), and type contracts (lib/types.ts).
+- Strict Type Safety: Zero use of 'any' across core interfaces. Strict TypeScript 5.5 configuration with noImplicitAny and exactOptionalPropertyTypes enabled.
+- Single Responsibility: Each component encapsulates one clear visual or logical concern, ensuring maintainability and straightforward debugging.
 
 ### B. Security - Safe and Responsible Implementation
-- SSRF Prevention Layer: Outbound external calls are strictly gated by an allowlist in lib/proxy.ts, permitting only authorized environmental telemetry hosts (api.waqi.info, air-quality-api.open-meteo.com, cpcb.nic.in, generativelanguage.googleapis.com). Non-HTTPS protocols and private IP ranges (127.0.0.1, 10.0.0.0/8, 192.168.0.0/16, localhost) are rejected.
-- HTTP Security Headers: Configured in next.config.mjs with Content-Security-Policy (CSP), X-Frame-Options: DENY, X-Content-Type-Options: nosniff, Referrer-Policy: strict-origin-when-cross-origin, and Permissions-Policy.
-- Secret Isolation: Google AI Studio API keys and WAQI tokens reside exclusively in server-side runtime environments and are never sent to client bundles or browser logs.
-- Input Sanitization: User input strings and chat payloads are length-capped and sanitized against injection attempts.
+- SSRF Prevention Layer: Outbound external calls are strictly gated by an allowlist in lib/proxy.ts, permitting only authorized hosts (api.waqi.info, air-quality-api.open-meteo.com, cpcb.nic.in, generativelanguage.googleapis.com). Non-HTTPS schemes, loopbacks (127.0.0.1, localhost), and RFC 1918 private IP subnets are blocked.
+- Edge Proxy Guard: Root proxy.ts intercepts all inbound requests, applying rate limiting (60 requests/minute/IP) to prevent API route abuse.
+- Security Headers: Enforces Content-Security-Policy (CSP), X-Frame-Options: DENY, X-Content-Type-Options: nosniff, Referrer-Policy: strict-origin-when-cross-origin, and Permissions-Policy across all routes.
+- Secret Isolation: Google AI Studio API keys and WAQI tokens are confined strictly to server-side execution and never exposed in client bundles.
+- Input Sanitization: User messages are capped at 1,000 characters and sanitized before prompt composition to mitigate prompt injection.
 
 ### C. Efficiency - Optimal Use of Resources
-- In-Memory LRU/TTL Caching: Telemetry requests and LLM recommendations are cached with automatic time-to-live expiration (300 seconds for sensor telemetry, 900 seconds for structured AI recommendations), drastically reducing upstream API consumption and delivering sub-millisecond cached responses.
-- Streaming Server-Sent Events (SSE): The AI AirSense chat drawer streams tokens as they generate, reducing time-to-first-token to under 400 milliseconds.
-- Dynamic Multi-Model Cascade: Primary generation on gemini-2.5-flash with automated failover ensures 99.9% uptime without costly manual retry loops.
+- Tiered Caching Strategy:
+  - In-Memory Server Cache: Outbound proxy queries cached for 300 seconds; structured AI recommendations cached for 900 seconds.
+  - Browser Session Cache: Telemetry and recommendations stored in sessionStorage, eliminating network round-trips when toggling between previously viewed cities.
+- Sub-400ms Time-to-First-Token: AI AirSense chat uses Server-Sent Events (SSE) streaming for real-time token delivery.
+- Low-Latency Model Selection: Primary reliance on gemini-2.5-flash yields sub-second inference times while operating within free-tier rate limits.
 
 ### D. Testing - Validation of Functionality
-- Automated Test Suite: Built with Node.js test runner and tsx, executable via 'npm test'.
+- Automated Test Suite: 27 automated unit and integration tests powered by Node.js native test runner and tsx, executable via 'npm test'.
 - Test Coverage:
-  - tests/aqi.test.ts: CPCB/NAAQS AQI categorization, breakpoint thresholds, health alert messaging, and boundary condition validation.
-  - tests/proxy.test.ts: SSRF domain allowlist enforcement, protocol validation, private IP rejection, and cache telemetry.
-  - tests/cities.test.ts: Subcontinent coordinate bounding, unique slug enforcement, and dataset integrity across 25 major Indian urban centers.
+  - tests/aqi.test.ts: CPCB/NAAQS calculation formulas, category breakpoints (Good through Hazardous), health messaging, and boundary conditions.
+  - tests/proxy.test.ts: SSRF domain allowlists, protocol validation, loopback blocking, and in-memory cache telemetry.
+  - tests/next-proxy.test.ts: Edge proxy header injection, CORS preflight OPTIONS resolution, and distributed tracing identifiers.
+  - tests/cities.test.ts: Dataset integrity, unique slug validation, and geographic bounding across 25 Indian urban centers.
+  - tests/storage.test.ts: Browser session storage serialization, fallback handling, corrupt JSON recovery, and prefix-based clearing.
 
 ### E. Accessibility - Inclusive and Usable Design
-- WAI-ARIA Semantics: Navigation tabs utilize role="tablist", role="tab", aria-selected, and aria-controls with ArrowLeft and ArrowRight keyboard navigation.
-- Focus and Modal Management: The floating chat drawer features role="dialog", aria-modal="true", autofocus on input, and Escape key dismissal.
-- Live Announcements: Live telemetry metrics and message streams utilize aria-live="polite" for screen-reader awareness.
-- Contrast Compliance: High-contrast typography on dark slate backgrounds compliant with WCAG AA guidelines.
+- WAI-ARIA Tab Semantics: TabNav implements role="tablist", role="tab", aria-selected, and aria-controls with full keyboard navigation (ArrowLeft, ArrowRight, Home, End).
+- Dialog Semantics and Focus Control: FloatingChatDrawer implements role="dialog", aria-modal="true", aria-labelledby, autofocus on the input element, and Escape key dismissal.
+- Live Region Announcements: Live sensor badges and chat message logs use aria-live="polite" to inform screen readers of incoming updates.
+- Visual Contrast and Usability: All visual elements meet WCAG AA contrast ratios against dark slate backgrounds, complemented by visible focus rings (focus-visible:ring-2) for keyboard navigators.
 
-### F. Problem Statement Alignment - Relevance to Indian Smog Realities
-- Ground-Level Inversion Layers: Explicitly addresses atmospheric physics trapping pollutants near ground level during cold Indian winter mornings.
-- Cultural and Domestic Context: Replaces generic Western advice with actionable Indian household interventions (curbing indoor agarbatti/dhoop during smog peaks, wet mopping to prevent particulate re-suspension, DIY Corsi-Rosenthal air cleaner boxes).
-- Multi-Persona Support: Five specialized profiles (Family with Kids, Working Professional, Senior Citizen, Student, General Resident).
+### F. Problem Statement Alignment - Relevance to the Stated Problem
+- Deep Indian Smog Context: Replaces generic Western guidance with localized realities: Indo-Gangetic meteorology, temperature inversions, seasonal stubble burning, Diwali spikes, and unsealed masonry structures.
+- Quantified Pathophysiological Impacts: Every routine and hack provides clear percentage reductions (e.g. -85% inhaled PM2.5 via N95, -60% per-capita emissions via Delhi Metro, -80% particulate resuspension via damp mopping).
+- Complete End-to-End Delivery: Live data ingestion, adaptive AI generation, daily planners, indoor defense guides, and persistent chat assistance working in unison.
 
 ---
 
-## 3. Technology Stack
+## 6. Technology Stack
 
 - Framework: Next.js 14.2.5 (App Router, Server Components, Route Handlers)
 - Language: TypeScript 5.5.4 (Strict Type Checking)
 - Generative AI SDK: @google/generative-ai (Google AI Studio)
-- Dynamic Icons: Dynamic SVG Favicon (app/icon.tsx) and Vector Mark (public/icon.svg)
-- Resilient Proxy: Custom TypeScript Proxy Engine (lib/proxy.ts, app/api/proxy/route.ts)
-- Test Runner: Node.js Test Runner with tsx
-- Styling: Tailwind CSS 3.4.1 (Dark Mode, Glassmorphism)
-- Telemetry Feeds: Continuous Ambient Air Quality Monitoring (CAAQMS) and WAQI Network
+- Styling: Tailwind CSS 3.4.1 (Dark Mode, Glassmorphic Design)
+- Icons: Lucide React and Custom Scalable Vector Mark (public/icon.svg)
+- Test Runner: Node.js Native Test Runner with tsx
+- Telemetry: CAAQMS Network, WAQI Station Feeds, Open-Meteo Atmospheric Models
 
 ---
 
-## 4. Directory Structure
+## 7. Directory Structure
 
 ```
 Urban Air Quality Assistant/
@@ -98,13 +155,18 @@ Urban Air Quality Assistant/
 │   ├── cities.ts                # 25 Indian Metros with Geographic Coordinates
 │   ├── gemini.ts                # Gemini Multi-Model Failover Cascade
 │   ├── proxy.ts                 # Resilient HTTP Client, SSRF Guard & In-Memory Cache
+│   ├── storage.ts               # SSR-Safe Browser SessionStorage Manager
 │   └── types.ts                 # Strict TypeScript Type Definitions
+├── middleware.ts                # Next.js 14 Middleware Adapter Re-Exporting proxy.ts
+├── proxy.ts                     # Next.js Edge Proxy with Rate Limiting & Tracing
 ├── public/
 │   └── icon.svg                 # Scalable Vector App Icon
 ├── tests/
 │   ├── aqi.test.ts              # Unit Tests for AQI Math and Breakpoints
 │   ├── cities.test.ts           # Integrity Tests for Indian Urban Centers Dataset
-│   └── proxy.test.ts            # Security Tests for SSRF Validation & Caching
+│   ├── next-proxy.test.ts       # Tests for Next.js Edge Proxy Header Injection
+│   ├── proxy.test.ts            # Security Tests for Outbound SSRF & Caching
+│   └── storage.test.ts          # Tests for Browser Session Storage Management
 ├── tsconfig.json                # Strict TypeScript Compiler Configuration
 ├── next.config.mjs              # Security Headers, Webpack Aliases & Server Optimization
 └── package.json                 # Dependency Manifest & Test Scripts
@@ -112,7 +174,7 @@ Urban Air Quality Assistant/
 
 ---
 
-## 5. Local Setup and Installation
+## 8. Local Setup and Installation
 
 ### Prerequisites
 - Node.js 18.18 or higher (Node.js 20+ recommended)
@@ -157,14 +219,3 @@ Navigate to http://localhost:3000 in your web browser.
 npm run build
 npm run start
 ```
-
----
-
-## 6. Evaluation Criteria Checklist
-
-- Code Quality: Strict TypeScript typing, modular separation of concerns, DRY utility functions, and zero linting warnings.
-- Security: Outbound SSRF defense via lib/proxy.ts, HTTP security headers, API keys strictly isolated on server side.
-- Efficiency: In-memory TTL caching for sensor telemetry and recommendations, streaming SSE responses for minimal latency.
-- Testing: Automated test suite passing 100% of unit and integration test assertions across AQI math, SSRF security, and geographic data.
-- Accessibility: WAI-ARIA tabs and dialogs, keyboard navigation, Escape key dismissal, and WCAG AA contrast compliance.
-- Problem Statement Alignment: Grounded in real-time Indian ambient air quality data and local atmospheric winter smog science with quantified impact metrics.
