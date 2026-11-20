@@ -125,70 +125,91 @@ export default function AppShell({ initialCities }: AppShellProps) {
     }
   }, [loadData]);
 
-  // Auto-request location permission on entry; fallback to IP geolocation if denied
+  // Initial location: Immediately use fast IP geolocation on site entry.
+  // If browser already has GPS permission granted, silently refine coordinates.
   useEffect(() => {
     const calibrated = getSessionStorage<string | null>(SESSION_KEYS.LOCATION_CALIBRATED, null);
     if (calibrated) return;
 
-    if (typeof window !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const { latitude, longitude } = pos.coords;
-          try {
-            const res = await fetch(`/api/cities?lat=${latitude}&lon=${longitude}`);
-            if (res.ok) {
-              const data = await res.json();
-              if (data?.city) {
-                const liveCity = data.city;
-                setSelectedCity(liveCity.value);
-                setSessionStorage(SESSION_KEYS.CITY, liveCity.value);
-                setSessionStorage(SESSION_KEYS.LOCATION_CALIBRATED, 'gps');
-                loadData(liveCity.value, userProfile);
-                setLocationToast(`GPS granted: Connected to live monitor: ${liveCity.label}`);
-                setTimeout(() => setLocationToast(null), 5000);
-                return;
-              }
-            }
-          } catch {}
+    let isMounted = true;
 
-          const { city: nearest } = findNearestCity(latitude, longitude, initialCities);
-          setSelectedCity(nearest.value);
-          setSessionStorage(SESSION_KEYS.CITY, nearest.value);
-          setSessionStorage(SESSION_KEYS.LOCATION_CALIBRATED, 'gps');
-          loadData(nearest.value, userProfile);
-          setLocationToast(`GPS granted: Calibrated to nearest monitor: ${nearest.label}`);
-          setTimeout(() => setLocationToast(null), 5000);
-        },
-        async (err) => {
-          console.warn('[Location Permission Declined]', err.message);
-          // FALLBACK TO IP LOCATION IF GPS DENIED
-          try {
-            const ipRes = await fetch('/api/cities?ip=1');
-            if (ipRes.ok) {
-              const ipData = await ipRes.json();
-              if (ipData?.success && ipData.city) {
-                const ipCity = ipData.city;
-                setSelectedCity(ipCity.value);
-                setSessionStorage(SESSION_KEYS.CITY, ipCity.value);
-                setSessionStorage(SESSION_KEYS.LOCATION_CALIBRATED, 'ip');
-                loadData(ipCity.value, userProfile);
-                setLocationToast(
-                  `GPS declined. Auto-detected approximate location via IP: ${ipCity.label}${
-                    ipData.detectedCity ? ` (${ipData.detectedCity})` : ''
-                  }`
-                );
-                setTimeout(() => setLocationToast(null), 5000);
-                return;
-              }
-            }
-          } catch (ipErr) {
-            console.warn('[IP Location Fallback Failed]', ipErr);
+    const calibrateInitialLocation = async () => {
+      // 1. Instantly resolve via fast network IP geolocation (no permission prompt needed, 0ms lag)
+      try {
+        const ipRes = await fetch('/api/cities?ip=1');
+        if (ipRes.ok && isMounted) {
+          const ipData = await ipRes.json();
+          if (ipData?.city) {
+            const ipCity: City = ipData.city;
+            setSelectedCity(ipCity.value);
+            setSessionStorage(SESSION_KEYS.CITY, ipCity.value);
+            setSessionStorage(SESSION_KEYS.LOCATION_CALIBRATED, 'ip');
+            loadData(ipCity.value, userProfile);
+            const detectedName = ipData.detectedCity || ipCity.label;
+            setLocationToast(`Auto-detected location: ${ipCity.label} (${detectedName})`);
+            setTimeout(() => {
+              if (isMounted) setLocationToast(null);
+            }, 4500);
           }
-          setSessionStorage(SESSION_KEYS.LOCATION_CALIBRATED, 'default');
-        },
-        { timeout: 8000, enableHighAccuracy: false, maximumAge: 300000 }
-      );
-    }
+        }
+      } catch (err) {
+        console.warn('[Initial IP Location failed]', err);
+      }
+
+      // 2. If browser ALREADY has GPS permission granted, silently refine without annoying prompts
+      if (typeof window !== 'undefined' && 'permissions' in navigator && navigator.permissions?.query) {
+        try {
+          const perm = await navigator.permissions.query({ name: 'geolocation' });
+          if (perm.state === 'granted' && navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              async (pos) => {
+                if (!isMounted) return;
+                const { latitude, longitude } = pos.coords;
+                try {
+                  const res = await fetch(`/api/cities?lat=${latitude}&lon=${longitude}`);
+                  if (res.ok) {
+                    const data = await res.json();
+                    if (data?.city) {
+                      const liveCity = data.city;
+                      setSelectedCity(liveCity.value);
+                      setSessionStorage(SESSION_KEYS.CITY, liveCity.value);
+                      setSessionStorage(SESSION_KEYS.LOCATION_CALIBRATED, 'gps');
+                      loadData(liveCity.value, userProfile);
+                      setLocationToast(`GPS refined: Connected to ${liveCity.label}`);
+                      setTimeout(() => {
+                        if (isMounted) setLocationToast(null);
+                      }, 4000);
+                      return;
+                    }
+                  }
+                } catch {
+                  // Keep the IP location already loaded
+                }
+
+                const { city: nearest } = findNearestCity(latitude, longitude, initialCities);
+                setSelectedCity(nearest.value);
+                setSessionStorage(SESSION_KEYS.CITY, nearest.value);
+                setSessionStorage(SESSION_KEYS.LOCATION_CALIBRATED, 'gps');
+                loadData(nearest.value, userProfile);
+              },
+              (gpsErr) => {
+                // Silently ignore GPS error since IP location is already active
+                console.warn('[Silent GPS check skipped]', gpsErr.message);
+              },
+              { timeout: 3500, enableHighAccuracy: false, maximumAge: 600000 }
+            );
+          }
+        } catch {
+          // Permissions API query not supported, keep IP location
+        }
+      }
+    };
+
+    calibrateInitialLocation();
+
+    return () => {
+      isMounted = false;
+    };
   }, [loadData, userProfile, initialCities]);
 
   const handleCityChange = (city: string) => {

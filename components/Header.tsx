@@ -109,62 +109,95 @@ export default function Header({
     };
   }, [isSearchOpen]);
 
-  // Auto-detect browser location and map to nearest Indian monitoring station
-  const handleAutoDetectLocation = () => {
-    if (typeof window === 'undefined' || !navigator.geolocation) {
-      setLocationNotice('Geolocation is not supported by your browser.');
-      setTimeout(() => setLocationNotice(null), 4000);
-      return;
+  // Fallback to fast IP geolocation
+  const fallbackToIpLocation = async (contextMsg: string) => {
+    try {
+      const res = await fetch('/api/cities?ip=1');
+      if (res.ok) {
+        const ipData = await res.json();
+        if (ipData?.city) {
+          onCityChange(ipData.city.value);
+          setIsLocating(false);
+          setIsSearchOpen(false);
+          setSearchQuery('');
+          const place = ipData.detectedCity || ipData.city.label;
+          setLocationNotice(`${contextMsg}: ${ipData.city.label} (${place})`);
+          setTimeout(() => setLocationNotice(null), 4500);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('IP fallback error:', e);
     }
+    setIsLocating(false);
+    setLocationNotice('Location unavailable. Please select your city from the list.');
+    setTimeout(() => setLocationNotice(null), 4000);
+  };
 
+  // Auto-detect browser location with fast GPS check and seamless IP fallback
+  const handleAutoDetectLocation = async () => {
     setIsLocating(true);
-    setLocationNotice('Requesting browser GPS coordinates...');
+    setLocationNotice('Detecting location...');
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords;
+    if (typeof window !== 'undefined' && navigator.geolocation) {
+      let hasResolved = false;
 
-        try {
-          const res = await fetch(`/api/cities?lat=${latitude}&lon=${longitude}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data?.city) {
-              const liveStation: City = data.city;
-              onCityChange(liveStation.value);
-              setIsLocating(false);
-              setIsSearchOpen(false);
-              setSearchQuery('');
-              const distanceText = data.distanceKm ? ` (~${data.distanceKm} km away)` : '';
-              setLocationNotice(`Connected to live monitor: ${liveStation.label} (${liveStation.state || 'Local Station'})${distanceText}`);
-              setTimeout(() => setLocationNotice(null), 5000);
-              return;
+      // 3.5-second safety fallback: if GPS stalls or hangs, smoothly auto-connect via IP
+      const safetyFallbackTimer = setTimeout(() => {
+        if (!hasResolved) {
+          hasResolved = true;
+          fallbackToIpLocation('Connected via network IP');
+        }
+      }, 3500);
+
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          if (hasResolved) return;
+          hasResolved = true;
+          clearTimeout(safetyFallbackTimer);
+
+          const { latitude, longitude } = pos.coords;
+
+          try {
+            const res = await fetch(`/api/cities?lat=${latitude}&lon=${longitude}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data?.city) {
+                const liveStation: City = data.city;
+                onCityChange(liveStation.value);
+                setIsLocating(false);
+                setIsSearchOpen(false);
+                setSearchQuery('');
+                const distanceText = data.distanceKm ? ` (~${data.distanceKm} km away)` : '';
+                setLocationNotice(`GPS connected: ${liveStation.label}${distanceText}`);
+                setTimeout(() => setLocationNotice(null), 4500);
+                return;
+              }
             }
+          } catch (fetchErr) {
+            console.warn('Live station resolution fallback:', fetchErr);
           }
-        } catch (fetchErr) {
-          console.warn('Live station resolution fallback:', fetchErr);
-        }
 
-        const { city: nearest, distanceKm } = findNearestCity(latitude, longitude, cities);
-        onCityChange(nearest.value);
-        setIsLocating(false);
-        setIsSearchOpen(false);
-        setSearchQuery('');
-        setLocationNotice(`Located nearest CAAQMS station: ${nearest.label} (~${distanceKm} km away)`);
-        setTimeout(() => setLocationNotice(null), 5000);
-      },
-      (err) => {
-        setIsLocating(false);
-        if (err.code === 1) {
-          setLocationNotice('Location permission denied. Please search your city manually.');
-        } else if (err.code === 3) {
-          setLocationNotice('Location request timed out. Please select from the list.');
-        } else {
-          setLocationNotice('Could not acquire location. Please search manually.');
-        }
-        setTimeout(() => setLocationNotice(null), 4500);
-      },
-      { timeout: 12000, enableHighAccuracy: false, maximumAge: 300000 }
-    );
+          const { city: nearest, distanceKm } = findNearestCity(latitude, longitude, cities);
+          onCityChange(nearest.value);
+          setIsLocating(false);
+          setIsSearchOpen(false);
+          setSearchQuery('');
+          setLocationNotice(`GPS connected: ${nearest.label} (~${distanceKm} km away)`);
+          setTimeout(() => setLocationNotice(null), 4500);
+        },
+        (err) => {
+          if (hasResolved) return;
+          hasResolved = true;
+          clearTimeout(safetyFallbackTimer);
+          console.warn('[GPS unavailable or timed out, auto-resolving via IP]', err.message);
+          fallbackToIpLocation('Auto-detected via network IP');
+        },
+        { timeout: 3500, enableHighAccuracy: false, maximumAge: 600000 }
+      );
+    } else {
+      fallbackToIpLocation('Auto-detected via network IP');
+    }
   };
 
   const handleSelectCity = (val: string) => {
