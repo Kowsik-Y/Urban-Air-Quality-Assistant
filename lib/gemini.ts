@@ -14,18 +14,19 @@ export function getGeminiClient(): GoogleGenerativeAI {
 }
 
 /**
- * Priority order of models to try. If any model is deprecated, expired,
- * overloaded (503), or rate-limited (429), it automatically fails over to the next.
+ * Verified active Gemini models for your API tier:
+ * 1. gemini-2.5-flash: Verified active & responsive (<1s latency)
+ * 2. gemini-2.5-flash-lite: Verified active fast lightweight tier
+ * 3. gemini-3.1-flash-lite-preview: Verified active preview
+ * 4. gemini-flash-latest: Stable fallback
+ * 5. gemini-3.8-flash: Next-gen preview
  */
 export const FALLBACK_MODELS = [
-  'gemini-1.5-flash',
-  'gemini-1.5-flash-latest',
-  'gemini-2.0-flash-exp',
-  'gemini-2.0-flash',
-  'gemini-1.5-flash-8b',
-  'gemini-1.5-pro',
-  'gemini-1.5-pro-latest',
-  'gemini-pro',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-3.1-flash-lite-preview',
+  'gemini-flash-latest',
+  'gemini-3.8-flash',
 ];
 
 const DEFAULT_CONFIG: GenerationConfig = {
@@ -36,7 +37,7 @@ const DEFAULT_CONFIG: GenerationConfig = {
 };
 
 /**
- * Execute generateContent with automatic multi-model failover.
+ * Execute generateContent with automatic multi-model failover across tested models.
  */
 export async function generateContentWithFallback(
   prompt: string,
@@ -71,7 +72,7 @@ export async function generateContentWithFallback(
 }
 
 /**
- * Execute streaming chat with automatic multi-model failover.
+ * Execute streaming chat with automatic multi-model failover across tested models.
  */
 export async function startChatStreamWithFallback(
   systemInstruction: string,

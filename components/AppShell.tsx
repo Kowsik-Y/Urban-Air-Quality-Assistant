@@ -10,6 +10,7 @@ import DailyPlanner from './DailyPlanner';
 import IndoorGuide from './IndoorGuide';
 import ChatAssistant from './ChatAssistant';
 import LoadingState from './LoadingState';
+import FloatingChatDrawer from './FloatingChatDrawer';
 import { Wind, AlertCircle, RefreshCw, Sparkles, MapPin, Shield } from 'lucide-react';
 
 interface AppShellProps {
@@ -25,6 +26,7 @@ export default function AppShell({ initialCities }: AppShellProps) {
   const [loadingRecs, setLoadingRecs] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
+  const [isFloatingChatOpen, setIsFloatingChatOpen] = useState<boolean>(false);
 
   const loadData = useCallback(async (city: string, profile: UserProfile) => {
     if (!city) return;
@@ -81,7 +83,7 @@ export default function AppShell({ initialCities }: AppShellProps) {
   // Initial load on mount
   useEffect(() => {
     loadData(selectedCity, userProfile);
-  }, []); // Run on initial mount
+  }, []);
 
   const handleCityChange = (city: string) => {
     setSelectedCity(city);
@@ -96,7 +98,7 @@ export default function AppShell({ initialCities }: AppShellProps) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
+    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 relative">
       {/* Dynamic Header */}
       <Header
         cities={initialCities}
@@ -111,7 +113,7 @@ export default function AppShell({ initialCities }: AppShellProps) {
       <TabNav activeTab={activeTab} onTabChange={setActiveTab} />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8 pb-24">
         {loadingAQI ? (
           <LoadingState />
         ) : error ? (
@@ -162,6 +164,15 @@ export default function AppShell({ initialCities }: AppShellProps) {
         )}
       </main>
 
+      {/* Floating AirSense Copilot Chat Action Button & Drawer */}
+      <FloatingChatDrawer
+        selectedCity={selectedCity}
+        aqiData={aqiData}
+        userProfile={userProfile}
+        isOpen={isFloatingChatOpen}
+        onToggle={() => setIsFloatingChatOpen((prev) => !prev)}
+      />
+
       {/* Persistent Status Bar */}
       <footer className="border-t border-slate-900 bg-slate-950/80 py-4 px-4 text-center text-xs text-slate-600">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
@@ -169,7 +180,7 @@ export default function AppShell({ initialCities }: AppShellProps) {
           <div className="flex items-center gap-4 text-slate-500">
             <span>Real-time CPCB / WAQI</span>
             <span>•</span>
-            <span>Google Gemini 1.5 Flash</span>
+            <span>Google Gemini 2.5 Flash</span>
             <span>•</span>
             <span>Zero Hardcoded Metrics</span>
           </div>
