@@ -2,8 +2,9 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import type { AQIData, ChatMessage, UserProfile } from '@/lib/types';
-import { Send, Bot, User, Sparkles, MessageSquareQuote, X, ChevronRight } from 'lucide-react';
+import { Send, Bot, User, Sparkles, MessageSquareQuote, X, ChevronRight, RotateCcw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { SESSION_KEYS, getSessionStorage, setSessionStorage } from '@/lib/storage';
 
 interface FloatingChatDrawerProps {
   selectedCity: string;
@@ -58,6 +59,57 @@ Context calibrated for: **${userProfile.replace(/_/g, ' ')}**. What would you li
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const historyRef = useRef<Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>>([]);
+  const hasHydratedRef = useRef(false);
+
+  // Hydrate chat messages, history and suggestions from sessionStorage on mount
+  useEffect(() => {
+    if (!hasHydratedRef.current) {
+      hasHydratedRef.current = true;
+      const savedMsgs = getSessionStorage<ChatMessage[]>(SESSION_KEYS.CHAT_MESSAGES, []);
+      const savedHist = getSessionStorage<Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>>(
+        SESSION_KEYS.CHAT_HISTORY,
+        []
+      );
+      const savedSuggestions = getSessionStorage<string[]>(SESSION_KEYS.CHAT_SUGGESTIONS, []);
+
+      if (savedMsgs && savedMsgs.length > 0) {
+        setMessages(savedMsgs);
+      } else {
+        setMessages([{ role: 'assistant', content: initialGreeting }]);
+      }
+      if (savedHist && savedHist.length > 0) {
+        historyRef.current = savedHist;
+      }
+      if (savedSuggestions && savedSuggestions.length > 0) {
+        setLlmSuggestions(savedSuggestions);
+      }
+    }
+  }, [initialGreeting]);
+
+  // Persist messages to sessionStorage whenever updated
+  useEffect(() => {
+    if (hasHydratedRef.current && messages.length > 0) {
+      setSessionStorage(SESSION_KEYS.CHAT_MESSAGES, messages);
+    }
+  }, [messages]);
+
+  // Persist suggestions to sessionStorage
+  useEffect(() => {
+    if (hasHydratedRef.current && llmSuggestions.length > 0) {
+      setSessionStorage(SESSION_KEYS.CHAT_SUGGESTIONS, llmSuggestions);
+    }
+  }, [llmSuggestions]);
+
+  // Reset conversation handler
+  const handleResetChat = () => {
+    const fresh: ChatMessage[] = [{ role: 'assistant', content: initialGreeting }];
+    setMessages(fresh);
+    historyRef.current = [];
+    setLlmSuggestions([]);
+    setSessionStorage(SESSION_KEYS.CHAT_MESSAGES, fresh);
+    setSessionStorage(SESSION_KEYS.CHAT_HISTORY, []);
+    setSessionStorage(SESSION_KEYS.CHAT_SUGGESTIONS, []);
+  };
 
   // Auto focus input and support Escape key dismissal when drawer opens
   useEffect(() => {
@@ -182,11 +234,13 @@ Context calibrated for: **${userProfile.replace(/_/g, ' ')}**. What would you li
         ? rawAccumulated.slice(0, delimiterIndex).trim()
         : rawAccumulated;
 
-      historyRef.current = [
+      const updatedHistory: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [
         ...historyRef.current,
         { role: 'user', parts: [{ text }] },
         { role: 'model', parts: [{ text: cleanFinalContent }] },
       ];
+      historyRef.current = updatedHistory;
+      setSessionStorage(SESSION_KEYS.CHAT_HISTORY, updatedHistory);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error reaching AI assistant';
       setMessages((prev) => {
@@ -257,6 +311,14 @@ Context calibrated for: **${userProfile.replace(/_/g, ' ')}**. What would you li
             </div>
 
             <div className="flex items-center gap-1">
+              <button
+                onClick={handleResetChat}
+                className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-cyan-300 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+                aria-label="Reset Conversation"
+                title="Reset Conversation"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
               <button
                 onClick={onToggle}
                 className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"

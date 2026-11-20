@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import type { AQIData, City, Recommendations, TabId, UserProfile } from '@/lib/types';
 import Header from './Header';
 import TabNav from './TabNav';
@@ -11,6 +11,7 @@ import IndoorGuide from './IndoorGuide';
 import LoadingState from './LoadingState';
 import FloatingChatDrawer from './FloatingChatDrawer';
 import { AlertCircle, RefreshCw } from 'lucide-react';
+import { SESSION_KEYS, getSessionStorage, setSessionStorage } from '@/lib/storage';
 
 interface AppShellProps {
   initialCities: City[];
@@ -26,16 +27,35 @@ export default function AppShell({ initialCities }: AppShellProps) {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [isFloatingChatOpen, setIsFloatingChatOpen] = useState<boolean>(false);
+  const isHydratedRef = useRef(false);
 
   const loadData = useCallback(async (city: string, profile: UserProfile) => {
     if (!city) return;
 
-    setLoadingAQI(true);
-    setLoadingRecs(true);
     setError(null);
 
+    // 1. Check session cache for telemetry
+    const telemetryCacheKey = `${SESSION_KEYS.TELEMETRY_PREFIX}${city.toLowerCase()}`;
+    const cachedAqi = getSessionStorage<AQIData | null>(telemetryCacheKey, null);
+    if (cachedAqi) {
+      setAqiData(cachedAqi);
+      setLoadingAQI(false);
+    } else {
+      setLoadingAQI(true);
+    }
+
+    // 2. Check session cache for AI recommendations
+    const recsCacheKey = `${SESSION_KEYS.RECS_PREFIX}${city.toLowerCase()}_${profile}`;
+    const cachedRecs = getSessionStorage<Recommendations | null>(recsCacheKey, null);
+    if (cachedRecs) {
+      setRecommendations(cachedRecs);
+      setLoadingRecs(false);
+    } else {
+      setLoadingRecs(true);
+    }
+
     try {
-      // 1. Fetch real-time live sensor AQI
+      // Fetch fresh live sensor AQI
       const aqiRes = await fetch(`/api/aqi?city=${encodeURIComponent(city)}`);
       const aqiJson = await aqiRes.json();
 
@@ -45,55 +65,89 @@ export default function AppShell({ initialCities }: AppShellProps) {
 
       const freshAQI: AQIData = aqiJson;
       setAqiData(freshAQI);
+      setSessionStorage(telemetryCacheKey, freshAQI);
       setLoadingAQI(false);
 
-      // 2. Feed real live numbers into Gemini GenAI for recommendations
-      const recRes = await fetch('/api/recommend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          city: freshAQI.city,
-          aqi: freshAQI.aqi,
-          aqiCategory: freshAQI.category,
-          userProfile: profile,
-          pm25: freshAQI.pm25,
-          pm10: freshAQI.pm10,
-          dominantPollutant: freshAQI.dominantPollutant,
-        }),
-      });
+      // If recommendations were not cached in session, fetch from Gemini
+      if (!cachedRecs) {
+        const recRes = await fetch('/api/recommend', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            city: freshAQI.city,
+            aqi: freshAQI.aqi,
+            aqiCategory: freshAQI.category,
+            userProfile: profile,
+            pm25: freshAQI.pm25,
+            pm10: freshAQI.pm10,
+            dominantPollutant: freshAQI.dominantPollutant,
+          }),
+        });
 
-      const recJson = await recRes.json();
+        const recJson = await recRes.json();
 
-      if (!recRes.ok) {
-        console.warn('AI Recommendations warning:', recJson.error);
-      } else {
-        setRecommendations(recJson);
+        if (!recRes.ok) {
+          console.warn('AI Recommendations warning:', recJson.error);
+        } else {
+          setRecommendations(recJson);
+          setSessionStorage(recsCacheKey, recJson);
+        }
       }
     } catch (err: unknown) {
       console.error(err);
-      const msg = err instanceof Error ? err.message : 'Failed to synchronize with air quality network.';
-      setError(msg);
+      if (!cachedAqi) {
+        const msg = err instanceof Error ? err.message : 'Failed to synchronize with air quality network.';
+        setError(msg);
+      }
     } finally {
       setLoadingAQI(false);
       setLoadingRecs(false);
     }
   }, []);
 
-  // Initial load on mount
+  // Hydrate user session from sessionStorage on mount
   useEffect(() => {
-    loadData(selectedCity, userProfile);
-  }, []);
+    if (!isHydratedRef.current) {
+      isHydratedRef.current = true;
+      const savedCity = getSessionStorage<string>(SESSION_KEYS.CITY, 'delhi');
+      const savedProfile = getSessionStorage<UserProfile>(SESSION_KEYS.PROFILE, 'general');
+      const savedTab = getSessionStorage<TabId>(SESSION_KEYS.ACTIVE_TAB, 'dashboard');
+      const savedDrawer = getSessionStorage<boolean>(SESSION_KEYS.DRAWER_OPEN, false);
+
+      setSelectedCity(savedCity);
+      setUserProfile(savedProfile);
+      setActiveTab(savedTab);
+      setIsFloatingChatOpen(savedDrawer);
+
+      loadData(savedCity, savedProfile);
+    }
+  }, [loadData]);
 
   const handleCityChange = (city: string) => {
     setSelectedCity(city);
+    setSessionStorage(SESSION_KEYS.CITY, city);
     loadData(city, userProfile);
   };
 
   const handleProfileChange = (profile: UserProfile) => {
     setUserProfile(profile);
+    setSessionStorage(SESSION_KEYS.PROFILE, profile);
     if (selectedCity) {
       loadData(selectedCity, profile);
     }
+  };
+
+  const handleTabChange = (tab: TabId) => {
+    setActiveTab(tab);
+    setSessionStorage(SESSION_KEYS.ACTIVE_TAB, tab);
+  };
+
+  const handleToggleDrawer = () => {
+    setIsFloatingChatOpen((prev) => {
+      const next = !prev;
+      setSessionStorage(SESSION_KEYS.DRAWER_OPEN, next);
+      return next;
+    });
   };
 
   return (
@@ -109,7 +163,7 @@ export default function AppShell({ initialCities }: AppShellProps) {
       />
 
       {/* Tabs (Main navigation for monitor, routines, planner, indoor) */}
-      <TabNav activeTab={activeTab} onTabChange={setActiveTab} />
+      <TabNav activeTab={activeTab} onTabChange={handleTabChange} />
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8 pb-24">
@@ -168,7 +222,7 @@ export default function AppShell({ initialCities }: AppShellProps) {
         aqiData={aqiData}
         userProfile={userProfile}
         isOpen={isFloatingChatOpen}
-        onToggle={() => setIsFloatingChatOpen((prev) => !prev)}
+        onToggle={handleToggleDrawer}
       />
 
     </div>
