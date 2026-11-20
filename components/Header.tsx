@@ -43,9 +43,6 @@ export default function Header({
                 <span className="text-xl font-black tracking-tight bg-gradient-to-r from-cyan-300 via-sky-200 to-blue-400 bg-clip-text text-transparent">
                   AirSense
                 </span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold tracking-widest bg-cyan-950 text-cyan-400 border border-cyan-800/50 uppercase">
-                  GenAI 2.0
-                </span>
               </div>
               <p className="text-[11px] text-slate-400 font-medium">Urban Smog & Community Guardian</p>
             </div>

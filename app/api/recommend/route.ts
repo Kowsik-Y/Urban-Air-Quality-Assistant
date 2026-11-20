@@ -11,7 +11,6 @@ const PROFILE_LABELS: Record<UserProfile, string> = {
 };
 
 function safeParseJSON(raw: string): Recommendations {
-  // Strip code fences if present
   let clean = raw.replace(/^```json/i, '').replace(/^```/i, '').replace(/```$/i, '').trim();
 
   try {
@@ -19,7 +18,6 @@ function safeParseJSON(raw: string): Recommendations {
   } catch (initialErr) {
     console.warn('[JSON Parse Error, attempting recovery]', initialErr);
 
-    // Try extracting JSON substring between first { and last }
     const firstBrace = clean.indexOf('{');
     const lastBrace = clean.lastIndexOf('}');
     if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
@@ -27,11 +25,10 @@ function safeParseJSON(raw: string): Recommendations {
       try {
         return JSON.parse(clean);
       } catch (nestedErr) {
-        // Continue to fallback
+        // Fallback
       }
     }
 
-    // Return a structured graceful fallback if partial truncation occurred
     return {
       urgencyMessage: 'Monitor ambient air quality and implement indoor filtration protocols.',
       healthAlert: 'High particulate concentrations detected. Sensitive individuals should limit exposure.',
@@ -40,13 +37,13 @@ function safeParseJSON(raw: string): Recommendations {
           title: 'Shift Commute Outside Inversion Window',
           description: 'Avoid transit during 7:00 AM - 9:30 AM when ground-level temperature inversion traps pollutants.',
           impact: 'Reduces inhaled fine particulate exposure by 35-45%',
-          icon: 'transit',
+          icon: '⏰',
         },
         {
           title: 'Use Certified Filtration Masks',
           description: 'Wear well-fitted N95 or FFP2 respirators during outdoor road commutes instead of cloth coverings.',
           impact: 'Filters up to 95% of PM2.5 particulates',
-          icon: 'mask',
+          icon: '😷',
         },
       ],
       indoorTips: [
@@ -54,13 +51,13 @@ function safeParseJSON(raw: string): Recommendations {
           title: 'Positive Pressure Clean Room Sealing',
           description: 'Keep doors and windows sealed with silicone draft strips and run True-HEPA filtration continuously.',
           impact: 'Lowers indoor PM2.5 concentrations by 75-90%',
-          icon: 'hepa',
+          icon: '💨',
         },
         {
           title: 'Active Kitchen Exhaust Operation',
           description: 'Operate range hoods during cooking and avoid open-flame sautéing or incense burning indoors.',
           impact: 'Eliminates acute indoor NO2 spikes by up to 70%',
-          icon: 'exhaust',
+          icon: '🍳',
         },
       ],
       sustainableAlternatives: [
@@ -68,7 +65,7 @@ function safeParseJSON(raw: string): Recommendations {
           title: 'Transition to Electric Feeder Transit',
           description: 'Adopt electric two-wheelers or shared electric metro feeder buses for first and last mile transit.',
           impact: 'Reduces personal tailpipe particulate emissions by 100%',
-          icon: 'ev',
+          icon: '⚡',
         },
       ],
       dailyPlanner: {
@@ -127,7 +124,7 @@ REQUIREMENTS:
       "title": "Action title",
       "description": "2 sentences of practical, habit-changing advice tailored to ${city}'s urban topography, traffic flow, and lifestyle.",
       "impact": "Quantifiable reduction impact (e.g., 'Reduces direct inhaled particulate mass by ~40%')",
-      "icon": "commute"
+      "icon": "Single emoji matching the action (e.g., 😷 for mask, 🚌 for transit, ⏰ for schedule, 🏃 for exercise, 🚲 for cycling)"
     }
   ],
   "indoorTips": [
@@ -135,7 +132,7 @@ REQUIREMENTS:
       "title": "Action title",
       "description": "2 sentences on optimizing indoor clean air zones (HEPA filtration, wet mopping, cooking ventilation, avoiding incense).",
       "impact": "Quantifiable benefit (e.g., 'Lowers indoor PM2.5 concentration by 65-80%')",
-      "icon": "indoor"
+      "icon": "Single emoji matching the action (e.g., 💨 for purifier, 🌿 for plants, 🍳 for cooking exhaust, 🪟 for window sealing)"
     }
   ],
   "sustainableAlternatives": [
@@ -143,7 +140,7 @@ REQUIREMENTS:
       "title": "Action title",
       "description": "2 sentences of sustainable alternatives (carpooling, EV feeder, induction cooking, community biomass reporting).",
       "impact": "Quantifiable community footprint reduction",
-      "icon": "sustainability"
+      "icon": "Single emoji matching the action (e.g., ⚡ for EV, 🚗 for carpool, 🍳 for induction, 🌱 for community greening)"
     }
   ],
   "dailyPlanner": {
@@ -155,7 +152,6 @@ REQUIREMENTS:
 
 Constraint: Provide exactly 4 concise, high-value items in each array. Provide exact numeric impact percentages where scientifically sound.`;
 
-    // Uses responseMimeType: 'application/json' and 8192 tokens so it never truncates
     const { text, modelUsed } = await generateContentWithFallback(prompt, {
       responseMimeType: 'application/json',
       maxOutputTokens: 8192,
