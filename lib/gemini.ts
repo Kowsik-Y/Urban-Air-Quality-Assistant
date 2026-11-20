@@ -61,7 +61,6 @@ export async function generateContentWithFallback(
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      console.warn(`[Gemini Fallback] Model ${modelName} failed: ${message}. Trying next candidate...`);
       errors.push({ model: modelName, error: message });
     }
   }
@@ -106,7 +105,6 @@ export async function startChatStreamWithFallback(
       return { stream: streamResult.stream, modelUsed: modelName };
     } catch (err: unknown) {
       const messageText = err instanceof Error ? err.message : String(err);
-      console.warn(`[Gemini Chat Fallback] Model ${modelName} failed: ${messageText}. Trying next...`);
       errors.push({ model: modelName, error: messageText });
     }
   }

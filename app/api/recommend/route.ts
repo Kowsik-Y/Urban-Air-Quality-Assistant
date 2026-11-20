@@ -16,7 +16,7 @@ function safeParseJSON(raw: string): Recommendations {
   try {
     return JSON.parse(clean);
   } catch (initialErr) {
-    console.warn('[JSON Parse Error, attempting recovery]', initialErr);
+
 
     const firstBrace = clean.indexOf('{');
     const lastBrace = clean.lastIndexOf('}');

@@ -1,7 +1,7 @@
 import React from 'react';
 import type { AQIData } from '@/lib/types';
 import { getPollutantStatus } from '@/lib/aqi';
-import { AlertTriangle, Clock, Radio, ExternalLink, Activity, Info } from 'lucide-react';
+import { AlertTriangle, Radio, ExternalLink, Activity } from 'lucide-react';
 
 interface AQIDashboardProps {
   aqiData: AQIData;
@@ -19,7 +19,9 @@ const POLLUTANT_SPECS = [
 export default function AQIDashboard({ aqiData }: AQIDashboardProps) {
   const { aqi, category, color, healthMessage, station, timestamp, source, sourceUrl, isFallback, dominantPollutant } = aqiData;
 
-  const circumference = 2 * Math.PI * 72;
+  // Circle geometry with generous buffer to prevent SVG viewport shadow cut-off
+  const radius = 75;
+  const circumference = 2 * Math.PI * radius;
   const clampedAQI = Math.min(Math.max(aqi, 0), 500);
   const strokeDashoffset = circumference * (1 - clampedAQI / 500);
 
@@ -41,26 +43,33 @@ export default function AQIDashboard({ aqiData }: AQIDashboardProps) {
     <div className="space-y-6 animate-fade-in">
       {/* Hero Visualizer */}
       <div className="glass-card rounded-3xl p-6 sm:p-8 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none opacity-20"
-          style={{ backgroundColor: color }} />
+        <div
+          className="absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none opacity-20"
+          style={{ backgroundColor: color }}
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative z-10">
           {/* Radial Gauge Meter */}
           <div className="lg:col-span-5 flex flex-col items-center justify-center">
-            <div className="relative w-52 h-52 flex items-center justify-center">
-              <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 160 160">
+            <div className="relative w-56 h-56 flex items-center justify-center p-2">
+              <svg
+                className="w-full h-full -rotate-90 transform overflow-visible"
+                viewBox="0 0 200 200"
+              >
+                {/* Background Track */}
                 <circle
-                  cx="80"
-                  cy="80"
-                  r="72"
-                  className="stroke-slate-800"
+                  cx="100"
+                  cy="100"
+                  r={radius}
+                  className="stroke-slate-800/80"
                   strokeWidth="12"
                   fill="transparent"
                 />
+                {/* Live Progress Arc with smooth unclipped glow */}
                 <circle
-                  cx="80"
-                  cy="80"
-                  r="72"
+                  cx="100"
+                  cy="100"
+                  r={radius}
                   stroke={color}
                   strokeWidth="12"
                   strokeDasharray={circumference}
@@ -68,10 +77,12 @@ export default function AQIDashboard({ aqiData }: AQIDashboardProps) {
                   strokeLinecap="round"
                   fill="transparent"
                   className="transition-all duration-1000 ease-out"
-                  style={{ filter: `drop-shadow(0 0 12px ${color}88)` }}
+                  style={{
+                    filter: `drop-shadow(0 0 10px ${color}80)`,
+                  }}
                 />
               </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center select-none pointer-events-none">
                 <span className="text-5xl font-black tracking-tight" style={{ color }}>
                   {aqi}
                 </span>
@@ -84,7 +95,7 @@ export default function AQIDashboard({ aqiData }: AQIDashboardProps) {
               </div>
             </div>
 
-            <div className="mt-4 text-center">
+            <div className="mt-2 text-center">
               <span
                 className="inline-block px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider text-slate-950 shadow-md"
                 style={{ backgroundColor: color }}
