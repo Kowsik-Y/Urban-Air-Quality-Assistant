@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { AQIData, ChatMessage, UserProfile } from '@/lib/types';
 import { Send, Bot, User, Sparkles, MessageSquareQuote, X, ChevronRight } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 interface FloatingChatDrawerProps {
   selectedCity: string;
@@ -84,7 +85,6 @@ How can I help you and your family navigate air quality today?`,
       dynamicList.push('Best window opening window for natural ventilation today?');
     }
 
-    // Fallbacks if list is short
     if (dynamicList.length < 3) {
       dynamicList.push('Natural dietary antioxidants to counteract oxidative smog stress?');
       dynamicList.push('How does night-time thermal inversion trap ground pollution?');
@@ -268,7 +268,24 @@ How can I help you and your family navigate air quality today?`,
                     }`}
                   >
                     {m.content ? (
-                      <div className="whitespace-pre-wrap">{m.content}</div>
+                      <div className="space-y-1.5 break-words">
+                        <ReactMarkdown
+                          components={{
+                            p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
+                            strong: ({ children }) => <strong className="font-bold text-cyan-300">{children}</strong>,
+                            ul: ({ children }) => <ul className="list-disc pl-4 space-y-1 my-1.5">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal pl-4 space-y-1 my-1.5">{children}</ol>,
+                            li: ({ children }) => <li className="text-slate-200">{children}</li>,
+                            code: ({ children }) => (
+                              <code className="bg-slate-800 px-1 py-0.5 rounded text-cyan-300 text-[11px] font-mono">
+                                {children}
+                              </code>
+                            ),
+                          }}
+                        >
+                          {m.content}
+                        </ReactMarkdown>
+                      </div>
                     ) : (
                       <div className="flex items-center gap-1 py-1">
                         <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" />
@@ -285,13 +302,6 @@ How can I help you and your family navigate air quality today?`,
 
           {/* Horizontal Scroll Quick Response / Auto-Suggestions Viewport */}
           <div className="px-3 py-2 border-t border-slate-800/80 bg-slate-950/70">
-            <div className="flex items-center justify-between mb-1 text-[10px] text-slate-400 font-semibold px-1">
-              <span className="flex items-center gap-1 text-cyan-400">
-                <Sparkles className="w-3 h-3" />
-                <span>Suggested Follow-ups</span>
-              </span>
-              <span className="text-slate-500 text-[9px]">Scroll horizontally</span>
-            </div>
 
             <div
               ref={scrollContainerRef}

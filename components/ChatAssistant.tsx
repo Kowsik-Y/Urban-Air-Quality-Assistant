@@ -2,7 +2,8 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { AQIData, ChatMessage, UserProfile } from '@/lib/types';
-import { Send, Bot, User, Sparkles, AlertCircle } from 'lucide-react';
+import { Send, Bot, User, Sparkles } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 interface ChatAssistantProps {
   selectedCity: string;
@@ -21,7 +22,7 @@ export default function ChatAssistant({ selectedCity, aqiData, userProfile }: Ch
   const [messages, setMessages] = useState<ChatMessage[]>(() => [
     {
       role: 'assistant',
-      content: `Hello! I am **AirSense Copilot**, your real-time smog & environmental health assistant for **${selectedCity || 'Urban India'}**.
+      content: `Hello! I am **AI AirSense**, your real-time smog & environmental health assistant for **${selectedCity || 'Urban India'}**.
 
 ${
   aqiData
@@ -119,7 +120,7 @@ Ask me anything regarding mask protocols, school/commute navigation, clean-room 
         const updated = [...prev];
         updated[updated.length - 1] = {
           role: 'assistant',
-          content: `⚠️ **Connection Note**: ${msg}. Please ensure your \`GEMINI_API_KEY\` is configured in \`.env.local\`.`,
+          content: `Connection Note: ${msg}. Please ensure your \`GEMINI_API_KEY\` is configured in \`.env.local\`.`,
         };
         return updated;
       });
@@ -134,7 +135,7 @@ Ask me anything regarding mask protocols, school/commute navigation, clean-room 
       <div className="px-5 py-3 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between text-xs">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span className="font-semibold text-slate-300">Live Gemini 1.5 Flash Reasoning</span>
+          <span className="font-semibold text-slate-300">Live Gemini Reasoning Telemetry</span>
         </div>
         {aqiData && (
           <div className="flex items-center gap-2 font-mono">
@@ -176,7 +177,24 @@ Ask me anything regarding mask protocols, school/commute navigation, clean-room 
                 }`}
               >
                 {m.content ? (
-                  <div className="whitespace-pre-wrap">{m.content}</div>
+                  <div className="space-y-1.5 break-words">
+                    <ReactMarkdown
+                      components={{
+                        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                        strong: ({ children }) => <strong className="font-bold text-cyan-300">{children}</strong>,
+                        ul: ({ children }) => <ul className="list-disc pl-4 space-y-1 my-1.5">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal pl-4 space-y-1 my-1.5">{children}</ol>,
+                        li: ({ children }) => <li className="text-slate-200">{children}</li>,
+                        code: ({ children }) => (
+                          <code className="bg-slate-800 px-1 py-0.5 rounded text-cyan-300 text-[11px] font-mono">
+                            {children}
+                          </code>
+                        ),
+                      }}
+                    >
+                      {m.content}
+                    </ReactMarkdown>
+                  </div>
                 ) : (
                   <div className="flex items-center gap-1.5 py-1">
                     <span className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" />
@@ -226,7 +244,7 @@ Ask me anything regarding mask protocols, school/commute navigation, clean-room 
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask AirSense about masks, purifier settings, or smog routines..."
+            placeholder="Ask AI AirSense about masks, purifier settings, or smog routines..."
             disabled={streaming}
             className="flex-1 bg-slate-950 border border-slate-700/80 rounded-2xl px-4 py-3 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/40 focus:border-cyan-400 transition-all disabled:opacity-50"
           />
