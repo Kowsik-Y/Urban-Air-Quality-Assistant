@@ -1,8 +1,9 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import type { AQIData, City, UserProfile } from '@/lib/types';
-import { Wind, ShieldAlert, Sparkles, MapPin, Users } from 'lucide-react';
+import { ShieldAlert, MapPin, Users } from 'lucide-react';
 
 const PROFILES: { value: UserProfile; label: string }[] = [
   { value: 'general', label: 'General Resident' },
@@ -35,9 +36,14 @@ export default function Header({
         {/* Brand identity */}
         <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 text-white">
-              <Wind className="w-5 h-5 animate-pulse" />
-            </div>
+            <Image
+              src="/icon.svg"
+              alt="AirSense Logo"
+              width={40}
+              height={40}
+              className="w-10 h-10 rounded-xl shadow-lg shadow-cyan-500/20 object-contain hover:scale-105 transition-transform"
+              priority
+            />
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xl font-black tracking-tight bg-gradient-to-r from-cyan-300 via-sky-200 to-blue-400 bg-clip-text text-transparent">
