@@ -41,7 +41,7 @@ export default function Header({
               alt="AirSense Logo"
               width={40}
               height={40}
-              className="w-10 h-10 rounded-xl shadow-lg shadow-cyan-500/20 object-contain"
+              className="w-10 h-10 rounded-xl p-1 object-contain"
               priority
             />
             <div>
