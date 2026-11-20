@@ -12,6 +12,7 @@ describe('Next.js Proxy Handler (proxy.ts)', () => {
     assert.strictEqual(res.headers.get('X-Frame-Options'), 'DENY');
     assert.strictEqual(res.headers.get('X-Content-Type-Options'), 'nosniff');
     assert.strictEqual(res.headers.get('Referrer-Policy'), 'strict-origin-when-cross-origin');
+    assert.strictEqual(res.headers.get('Permissions-Policy'), 'camera=(), microphone=(), geolocation=(self)');
   });
 
   it('handles CORS OPTIONS preflight queries for API routes', () => {
