@@ -16,6 +16,7 @@ const ALLOWED_DOMAINS = new Set([
   'ipwho.is',
   'cpcb.nic.in',
   'generativelanguage.googleapis.com',
+  'nominatim.openstreetmap.org',
 ]);
 
 interface CacheEntry<T> {

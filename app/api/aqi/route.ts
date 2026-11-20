@@ -101,12 +101,26 @@ export async function GET(request: NextRequest) {
       const aqi = Math.max(10, Math.min(500, rawAqi));
       const cat = getAQICategory(aqi);
 
-      const stationFullName = d.city?.name || displayCityLabel;
-      const parsedCity = stationFullName.split(',')[0].trim();
-      const parsedState = stationFullName.split(',')[1]?.trim() || displayState;
+      const stationFullName = d.city?.name || '';
+      const stationParts = stationFullName.split(',').map((s) => s.trim()).filter(Boolean);
+
+      let cleanStationCity = stationParts[0] || displayCityLabel;
+      let cleanStationState = stationParts[1] || displayState;
+
+      // Handle generic prefixes from Indian CAAQMS stations e.g. "Urban, Chamarajanagar, India"
+      if (/^(urban|rural|monitoring|station|cpcb|caaqms)$/i.test(cleanStationCity) && stationParts.length > 1) {
+        cleanStationCity = `${stationParts[1]} (${cleanStationCity})`;
+        cleanStationState = stationParts[2] || stationParts[1];
+      }
+
+      // Preserve the user's searched/selected city (e.g. Sathyamangalam), while using station for sensor source
+      const finalCityDisplay =
+        displayCityLabel && !displayCityLabel.startsWith('geo:')
+          ? `${displayCityLabel}${displayState ? `, ${displayState}` : ''}`
+          : `${cleanStationCity}${cleanStationState ? `, ${cleanStationState}` : ''}`;
 
       const result: AQIData = {
-        city: `${parsedCity}${parsedState ? `, ${parsedState}` : ''}`,
+        city: finalCityDisplay,
         aqi,
         dominantPollutant: (d.dominentpol || 'pm25').toUpperCase(),
         pm25: d.iaqi?.pm25?.v ?? null,
@@ -116,7 +130,7 @@ export async function GET(request: NextRequest) {
         o3: d.iaqi?.o3?.v ?? null,
         co: d.iaqi?.co?.v ?? null,
         timestamp: d.time?.iso || new Date().toISOString(),
-        station: d.city?.name || `${displayCityLabel} CAAQMS Regional Monitor`,
+        station: stationFullName || `${finalCityDisplay} CAAQMS Regional Monitor`,
         source: 'Continuous Ambient Air Quality Monitoring (CAAQMS) & WAQI Network',
         sourceUrl: d.city?.url || 'https://waqi.info',
         ...cat,

@@ -54,12 +54,17 @@ export const CITIES: City[] = [
   // Southern India
   { value: 'bengaluru', label: 'Bengaluru', state: 'Karnataka', lat: 12.9716, lon: 77.5946 },
   { value: 'mysuru', label: 'Mysuru', state: 'Karnataka', lat: 12.2958, lon: 76.6394 },
+  { value: 'chamarajanagar', label: 'Chamarajanagar', state: 'Karnataka', lat: 11.9261, lon: 76.9437 },
+  { value: 'sathyamangalam', label: 'Sathyamangalam', state: 'Tamil Nadu', lat: 11.5053, lon: 77.2383 },
+  { value: 'erode', label: 'Erode', state: 'Tamil Nadu', lat: 11.3410, lon: 77.7172 },
+  { value: 'tirupur', label: 'Tirupur', state: 'Tamil Nadu', lat: 11.1085, lon: 77.3411 },
+  { value: 'salem', label: 'Salem', state: 'Tamil Nadu', lat: 11.6643, lon: 78.1460 },
+  { value: 'coimbatore', label: 'Coimbatore', state: 'Tamil Nadu', lat: 11.0168, lon: 76.9558 },
+  { value: 'chennai', label: 'Chennai', state: 'Tamil Nadu', lat: 13.0827, lon: 80.2707 },
+  { value: 'madurai', label: 'Madurai', state: 'Tamil Nadu', lat: 9.9252, lon: 78.1198 },
   { value: 'hyderabad', label: 'Hyderabad', state: 'Telangana', lat: 17.3850, lon: 78.4867 },
   { value: 'visakhapatnam', label: 'Visakhapatnam', state: 'Andhra Pradesh', lat: 17.6868, lon: 83.2185 },
   { value: 'vijayawada', label: 'Vijayawada', state: 'Andhra Pradesh', lat: 16.5062, lon: 80.6480 },
-  { value: 'chennai', label: 'Chennai', state: 'Tamil Nadu', lat: 13.0827, lon: 80.2707 },
-  { value: 'coimbatore', label: 'Coimbatore', state: 'Tamil Nadu', lat: 11.0168, lon: 76.9558 },
-  { value: 'madurai', label: 'Madurai', state: 'Tamil Nadu', lat: 9.9252, lon: 78.1198 },
   { value: 'kochi', label: 'Kochi', state: 'Kerala', lat: 9.9312, lon: 76.2673 },
   { value: 'thiruvananthapuram', label: 'Thiruvananthapuram', state: 'Kerala', lat: 8.5241, lon: 76.9366 }
 ];

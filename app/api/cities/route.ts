@@ -116,6 +116,52 @@ export async function GET(request: NextRequest) {
     const lon = parseFloat(lonStr);
 
     if (!isNaN(lat) && !isNaN(lon)) {
+      // 1A. Check local catalog proximity first (e.g., Sathyamangalam, Coimbatore, Erode)
+      const { city: nearestCatalog, distanceKm: catalogDist } = findNearestCity(lat, lon, CITIES);
+
+      // 1B. Reverse geocode with OpenStreetMap Nominatim for exact local municipality/town
+      let resolvedTown: string | null = null;
+      let resolvedState: string | null = null;
+
+      try {
+        const nomUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`;
+        const { data: nomData } = await safeFetchJson<{
+          address?: {
+            town?: string;
+            city?: string;
+            municipality?: string;
+            village?: string;
+            suburb?: string;
+            county?: string;
+            state_district?: string;
+            state?: string;
+          };
+        }>(nomUrl, {
+          ttlSeconds: 86400,
+          timeoutMs: 3000,
+          headers: { 'User-Agent': 'AirSense-Urban-Air-Quality-Assistant/1.0' },
+        });
+
+        if (nomData?.address) {
+          const a = nomData.address;
+          resolvedTown = a.town || a.city || a.municipality || a.village || a.suburb || a.county || a.state_district || null;
+          resolvedState = a.state || null;
+        }
+      } catch (nomErr) {
+        console.warn('[Nominatim reverse lookup skipped]', nomErr);
+      }
+
+      // If catalog distance is within 30km, prefer curated catalog label for clean UI
+      const primaryTown =
+        catalogDist <= 30
+          ? nearestCatalog.label
+          : resolvedTown || nearestCatalog.label;
+      const primaryState =
+        catalogDist <= 30
+          ? nearestCatalog.state
+          : resolvedState || nearestCatalog.state || 'India';
+
+      // 1C. Query nearest WAQI live sensor station
       try {
         const waqiGeoUrl = `https://api.waqi.info/feed/geo:${lat};${lon}/?token=${token}`;
         const { data: geoData } = await safeFetchJson<WaqiGeoResponse>(waqiGeoUrl, {
@@ -125,27 +171,49 @@ export async function GET(request: NextRequest) {
 
         if (geoData?.status === 'ok' && geoData.data?.city?.name) {
           const rawName = geoData.data.city.name;
-          const cleanName = rawName.split(',')[0].trim();
+          const parts = rawName.split(',').map((s) => s.trim()).filter(Boolean);
+
+          let cleanStationCity = parts[0] || primaryTown;
+          let cleanStationState = parts[1] || primaryState;
+
+          // Prevent generic 'Urban' or 'Rural' from being used as the city label
+          if (/^(urban|rural|monitoring|station|cpcb|caaqms)$/i.test(cleanStationCity) && parts.length > 1) {
+            cleanStationCity = `${parts[1]} (${cleanStationCity})`;
+            cleanStationState = parts[2] || parts[1];
+          }
+
           const geoLat = geoData.data.city.geo?.[0] ?? lat;
           const geoLon = geoData.data.city.geo?.[1] ?? lon;
 
           const dynamicCity: City = {
-            value: `geo:${lat.toFixed(4)},${lon.toFixed(4)}`,
-            label: cleanName,
-            state: rawName.split(',')[1]?.trim() || 'Local Station',
+            value: primaryTown.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+            label: primaryTown,
+            state: primaryState,
             lat: geoLat,
             lon: geoLon,
           };
 
-          return NextResponse.json({ city: dynamicCity, source: 'waqi_geo' });
+          return NextResponse.json({
+            city: dynamicCity,
+            stationName: rawName,
+            distanceKm: catalogDist,
+            source: 'waqi_geo',
+          });
         }
       } catch (err) {
         console.warn('[WAQI Geo lookup failed, falling back to local nearest]', err);
       }
 
-      // Fallback to Haversine nearest city from curated catalog
-      const { city: nearest, distanceKm } = findNearestCity(lat, lon, CITIES);
-      return NextResponse.json({ city: nearest, distanceKm, source: 'haversine_catalog' });
+      // Fallback: return resolved town or nearest catalog city
+      const fallbackCity: City = {
+        value: primaryTown.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+        label: primaryTown,
+        state: primaryState,
+        lat,
+        lon,
+      };
+
+      return NextResponse.json({ city: fallbackCity, distanceKm: catalogDist, source: 'geo_resolved' });
     }
   }
 
