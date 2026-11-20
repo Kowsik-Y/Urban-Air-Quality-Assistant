@@ -17,7 +17,7 @@ export function getGeminiClient(): GoogleGenerativeAI {
  * Verified active Gemini models for your API tier:
  * 1. gemini-2.5-flash: Verified active & responsive (<1s latency)
  * 2. gemini-2.5-flash-lite: Verified active fast lightweight tier
- * 3. gemini-3.1-flash-lite-preview: Verified active preview
+ * 3. gemini-3.1-flash-lite-preview: Verified active preview tier
  * 4. gemini-flash-latest: Stable fallback
  * 5. gemini-3.8-flash: Next-gen preview
  */
@@ -33,7 +33,7 @@ const DEFAULT_CONFIG: GenerationConfig = {
   temperature: 0.6,
   topK: 40,
   topP: 0.95,
-  maxOutputTokens: 2048,
+  maxOutputTokens: 8192,
 };
 
 /**
@@ -96,7 +96,7 @@ export async function startChatStreamWithFallback(
           { role: 'user', parts: [{ text: systemInstruction }] },
           {
             role: 'model',
-            parts: [{ text: `Understood. Calibrated as AirSense Assistant on model ${modelName}. Ready to assist.` }],
+            parts: [{ text: `Understood. Calibrated as AI AirSense on model ${modelName}. Ready to assist.` }],
           },
           ...history,
         ],

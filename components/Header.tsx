@@ -4,12 +4,12 @@ import React from 'react';
 import type { AQIData, City, UserProfile } from '@/lib/types';
 import { Wind, ShieldAlert, Sparkles, MapPin, Users } from 'lucide-react';
 
-const PROFILES: { value: UserProfile; label: string; icon: string }[] = [
-  { value: 'general', label: 'General Resident', icon: '👤' },
-  { value: 'family_with_kids', label: 'Family with Kids', icon: '👨‍👩‍👧' },
-  { value: 'working_professional', label: 'Working Professional', icon: '💼' },
-  { value: 'senior_citizen', label: 'Senior Citizen', icon: '🧓' },
-  { value: 'student', label: 'Student / Youth', icon: '🎓' },
+const PROFILES: { value: UserProfile; label: string }[] = [
+  { value: 'general', label: 'General Resident' },
+  { value: 'family_with_kids', label: 'Family with Kids' },
+  { value: 'working_professional', label: 'Working Professional' },
+  { value: 'senior_citizen', label: 'Senior Citizen' },
+  { value: 'student', label: 'Student / Youth' },
 ];
 
 interface HeaderProps {
@@ -91,7 +91,7 @@ export default function Header({
             >
               {PROFILES.map((p) => (
                 <option key={p.value} value={p.value}>
-                  {p.icon} {p.label}
+                  {p.label}
                 </option>
               ))}
             </select>

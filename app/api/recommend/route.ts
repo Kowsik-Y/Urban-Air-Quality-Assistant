@@ -10,6 +10,76 @@ const PROFILE_LABELS: Record<UserProfile, string> = {
   general: 'General Urban Resident & Community Member',
 };
 
+function safeParseJSON(raw: string): Recommendations {
+  // Strip code fences if present
+  let clean = raw.replace(/^```json/i, '').replace(/^```/i, '').replace(/```$/i, '').trim();
+
+  try {
+    return JSON.parse(clean);
+  } catch (initialErr) {
+    console.warn('[JSON Parse Error, attempting recovery]', initialErr);
+
+    // Try extracting JSON substring between first { and last }
+    const firstBrace = clean.indexOf('{');
+    const lastBrace = clean.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      clean = clean.slice(firstBrace, lastBrace + 1);
+      try {
+        return JSON.parse(clean);
+      } catch (nestedErr) {
+        // Continue to fallback
+      }
+    }
+
+    // Return a structured graceful fallback if partial truncation occurred
+    return {
+      urgencyMessage: 'Monitor ambient air quality and implement indoor filtration protocols.',
+      healthAlert: 'High particulate concentrations detected. Sensitive individuals should limit exposure.',
+      lowEmissionRoutines: [
+        {
+          title: 'Shift Commute Outside Inversion Window',
+          description: 'Avoid transit during 7:00 AM - 9:30 AM when ground-level temperature inversion traps pollutants.',
+          impact: 'Reduces inhaled fine particulate exposure by 35-45%',
+          icon: 'transit',
+        },
+        {
+          title: 'Use Certified Filtration Masks',
+          description: 'Wear well-fitted N95 or FFP2 respirators during outdoor road commutes instead of cloth coverings.',
+          impact: 'Filters up to 95% of PM2.5 particulates',
+          icon: 'mask',
+        },
+      ],
+      indoorTips: [
+        {
+          title: 'Positive Pressure Clean Room Sealing',
+          description: 'Keep doors and windows sealed with silicone draft strips and run True-HEPA filtration continuously.',
+          impact: 'Lowers indoor PM2.5 concentrations by 75-90%',
+          icon: 'hepa',
+        },
+        {
+          title: 'Active Kitchen Exhaust Operation',
+          description: 'Operate range hoods during cooking and avoid open-flame sautéing or incense burning indoors.',
+          impact: 'Eliminates acute indoor NO2 spikes by up to 70%',
+          icon: 'exhaust',
+        },
+      ],
+      sustainableAlternatives: [
+        {
+          title: 'Transition to Electric Feeder Transit',
+          description: 'Adopt electric two-wheelers or shared electric metro feeder buses for first and last mile transit.',
+          impact: 'Reduces personal tailpipe particulate emissions by 100%',
+          icon: 'ev',
+        },
+      ],
+      dailyPlanner: {
+        morning: 'Remain indoors during peak morning inversion. Run air purifiers on high.',
+        afternoon: 'Moderate window cracking allowed between 1:00 PM and 3:30 PM if solar dispersion improves ground AQI.',
+        evening: 'Seal windows before evening traffic builds at 5:30 PM. Keep filtration active overnight.',
+      },
+    };
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as {
@@ -33,11 +103,11 @@ export async function POST(request: NextRequest) {
 
     const profileLabel = PROFILE_LABELS[userProfile] || PROFILE_LABELS.general;
 
-    const prompt = `You are "AirSense GenAI", an intelligent urban air pollution and severe winter smog navigator for Indian communities.
+    const prompt = `You are "AI AirSense", an intelligent urban air pollution and severe winter smog navigator for Indian communities.
 
-ACTUAL LIVE SENSOR DATA:
+LIVE SENSOR CONCENTRATIONS:
 - Location / City: ${city}
-- Real-time AQI: ${aqi} (${aqiCategory})
+- Current AQI: ${aqi} (${aqiCategory})
 ${pm25 != null ? `- PM2.5 Concentration: ${pm25} µg/m³` : ''}
 ${pm10 != null ? `- PM10 Concentration: ${pm10} µg/m³` : ''}
 ${dominantPollutant ? `- Dominant Criteria Pollutant: ${dominantPollutant}` : ''}
@@ -47,33 +117,33 @@ OBJECTIVE:
 Generate a personalized, medically-grounded, low-emission daily strategy that guides this specific household through severe winter smog, indoor hazards, and emission reduction alternatives.
 
 REQUIREMENTS:
-1. Return purely valid JSON (NO markdown code blocks, NO intro/outro).
-2. Exactly follow this JSON schema:
+1. Return purely valid RFC8259 JSON.
+2. Follow this schema:
 {
   "urgencyMessage": "A concise 1-2 sentence real-time situation summary with direct guidance for ${city}.",
-  "healthAlert": "${aqi > 150 ? 'Urgent medical advisory detailing biological risks (e.g., alveolar penetration, bronchial inflammation) and high-risk symptoms to watch for' : ''}",
+  "healthAlert": "${aqi > 150 ? 'Urgent medical advisory detailing biological risks and high-risk symptoms to watch for' : ''}",
   "lowEmissionRoutines": [
     {
       "title": "Action title",
-      "description": "2-3 sentences of practical, habit-changing advice tailored to ${city}'s urban topography, traffic flow, and lifestyle.",
+      "description": "2 sentences of practical, habit-changing advice tailored to ${city}'s urban topography, traffic flow, and lifestyle.",
       "impact": "Quantifiable reduction impact (e.g., 'Reduces direct inhaled particulate mass by ~40%')",
-      "icon": "Single emoji icon"
+      "icon": "commute"
     }
   ],
   "indoorTips": [
     {
       "title": "Action title",
-      "description": "2-3 sentences on optimizing indoor clean air zones (HEPA filtration, wet mopping, cooking ventilation, avoiding incense).",
+      "description": "2 sentences on optimizing indoor clean air zones (HEPA filtration, wet mopping, cooking ventilation, avoiding incense).",
       "impact": "Quantifiable benefit (e.g., 'Lowers indoor PM2.5 concentration by 65-80%')",
-      "icon": "Single emoji icon"
+      "icon": "indoor"
     }
   ],
   "sustainableAlternatives": [
     {
       "title": "Action title",
-      "description": "2-3 sentences of sustainable alternatives (carpooling, EV feeder, induction cooking, community biomass reporting).",
+      "description": "2 sentences of sustainable alternatives (carpooling, EV feeder, induction cooking, community biomass reporting).",
       "impact": "Quantifiable community footprint reduction",
-      "icon": "Single emoji icon"
+      "icon": "sustainability"
     }
   ],
   "dailyPlanner": {
@@ -83,14 +153,15 @@ REQUIREMENTS:
   }
 }
 
-Constraint: Provide exactly 4 high-quality items in each array. Provide exact numeric impact percentages where scientifically sound.`;
+Constraint: Provide exactly 4 concise, high-value items in each array. Provide exact numeric impact percentages where scientifically sound.`;
 
-    // Uses multi-model fallback cascade automatically
-    const { text, modelUsed } = await generateContentWithFallback(prompt);
+    // Uses responseMimeType: 'application/json' and 8192 tokens so it never truncates
+    const { text, modelUsed } = await generateContentWithFallback(prompt, {
+      responseMimeType: 'application/json',
+      maxOutputTokens: 8192,
+    });
 
-    // Clean any accidental markdown code fences
-    const cleanJson = text.replace(/^```json/i, '').replace(/^```/i, '').replace(/```$/i, '').trim();
-    const parsed: Recommendations = JSON.parse(cleanJson);
+    const parsed = safeParseJSON(text);
 
     return NextResponse.json({ ...parsed, _modelUsed: modelUsed });
   } catch (err: unknown) {

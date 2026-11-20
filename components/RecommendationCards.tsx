@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Recommendations, AQIData, Recommendation } from '@/lib/types';
-import { Bike, Home, Leaf, ShieldAlert, Sparkles, TrendingDown, ArrowRight } from 'lucide-react';
+import { Bike, Home, Leaf, ShieldAlert, Sparkles, TrendingDown } from 'lucide-react';
 
 interface RecommendationCardsProps {
   recommendations: Recommendations | null;
@@ -13,8 +13,8 @@ function ImpactCard({ item }: { item: Recommendation }) {
     <div className="glass-card rounded-2xl p-5 sm:p-6 flex flex-col justify-between space-y-4 hover:border-cyan-500/40 transition-all duration-300 group">
       <div className="space-y-2">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-xl shadow-inner group-hover:scale-110 transition-transform">
-            {item.icon || '🌱'}
+          <div className="w-10 h-10 rounded-xl bg-cyan-950/60 border border-cyan-800/40 flex items-center justify-center text-cyan-400 shadow-inner group-hover:scale-110 transition-transform">
+            <Sparkles className="w-5 h-5" />
           </div>
           <h4 className="text-sm sm:text-base font-bold text-slate-100 tracking-tight group-hover:text-cyan-300 transition-colors">
             {item.title}
