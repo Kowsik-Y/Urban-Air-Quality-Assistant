@@ -15,28 +15,32 @@ export async function POST(request: NextRequest) {
         userProfile: UserProfile;
         pm25?: number | null;
         pm10?: number | null;
+        dominantPollutant?: string;
       };
       history?: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>;
     };
 
     const { message, context, history = [] } = body;
-    const { city, aqi, aqiCategory, userProfile, pm25, pm10 } = context;
+    const { city, aqi, aqiCategory, userProfile, pm25, pm10, dominantPollutant } = context;
 
-    const systemPrompt = `You are "AirSense Assistant", an authoritative yet compassionate environmental health & urban air quality AI advisor for Indian families and municipal communities.
+    const systemPrompt = `You are "AI AirSense", an environmental health & urban air quality AI advisor for Indian communities.
 
-CURRENT REAL-TIME ENVIRONMENTAL CONTEXT:
-- City/Location: ${city || 'Urban India'}
+LIVE SENSOR CONTEXT:
+- City/Station: ${city || 'Urban India'}
 - Real-time AQI: ${aqi} (${aqiCategory})
 ${pm25 != null ? `- PM2.5: ${pm25} µg/m³` : ''}
 ${pm10 != null ? `- PM10: ${pm10} µg/m³` : ''}
+${dominantPollutant ? `- Dominant Pollutant: ${dominantPollutant}` : ''}
 - Active User Lifestyle Profile: ${userProfile}
 
-CONVERSATION RULES:
-1. Directly ground your guidance in today's live numbers (AQI: ${aqi}, ${aqiCategory}).
-2. Offer precise, medically safe, and culturally practical Indian urban solutions (e.g., N95/FFP2 vs cloth masks, HEPA clean rooms, steam inhalation limits, avoiding early morning winter jogging during thermal inversion).
-3. Always explain the "WHY" (the direct pathophysiological or environmental impact of their choices).
-4. Keep responses crisp, actionable, structured with bullet points where helpful, around 3–5 short paragraphs or punchy points.
-5. If medical distress (severe wheezing, chest tightness) is mentioned, explicitly advise consulting a physician or visiting the nearest hospital immediately.`;
+CONVERSATION INSTRUCTIONS:
+1. Ground advice strictly in today's live numbers (AQI: ${aqi}, ${aqiCategory}).
+2. Provide practical, culturally and geographically relevant Indian urban solutions.
+3. Quantify direct health or emission impacts.
+4. Keep the main explanation concise (3 to 4 short paragraphs or bullet points).
+5. MANDATORY FOLLOW-UP SUGGESTIONS: At the very end of your response, output a single trailing line formatted exactly as:
+<<<SUGGESTIONS>>>: [Follow-up question 1] | [Follow-up question 2] | [Follow-up question 3]
+These questions must be highly specific follow-ups to what you just explained and relevant to ${city}'s current AQI ${aqi}.`;
 
     // Uses multi-model fallback cascade automatically
     const { stream, modelUsed } = await startChatStreamWithFallback(

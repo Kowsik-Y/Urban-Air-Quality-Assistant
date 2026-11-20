@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import type { AQIData, ChatMessage, UserProfile } from '@/lib/types';
 import { Send, Bot, User, Sparkles, MessageSquareQuote, X, ChevronRight } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -13,14 +13,6 @@ interface FloatingChatDrawerProps {
   onToggle: () => void;
 }
 
-const INITIAL_PROMPTS = [
-  'What mask rating (N95 / FFP2) is needed today?',
-  'Is it safe for children or elderly to step outside?',
-  'Which commute option has the lowest inhaled PM2.5?',
-  'Best indoor HEPA purifier run time for sleep?',
-  'Can I do outdoor exercise in the afternoon?',
-];
-
 export default function FloatingChatDrawer({
   selectedCity,
   aqiData,
@@ -28,70 +20,61 @@ export default function FloatingChatDrawer({
   isOpen,
   onToggle,
 }: FloatingChatDrawerProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>(() => [
-    {
-      role: 'assistant',
-      content: `Hello! I am **AI AirSense**, your real-time winter smog & environmental health assistant for **${selectedCity || 'Urban India'}**.
+  // Dynamically generated greeting based on live telemetry
+  const initialGreeting = useMemo(() => {
+    if (!aqiData) {
+      return `Welcome to **AI AirSense**. Select a city in the header to initialize live CAAQMS telemetry.`;
+    }
+    return `Hello. I am **AI AirSense**, calibrated with live telemetry from **${aqiData.station}** in **${aqiData.city}**.
 
-${
-  aqiData
-    ? `Live Environmental Status: **AQI ${aqiData.aqi}** (${aqiData.category}) in **${aqiData.city}**. Dominant pollutant: **${aqiData.dominantPollutant}**.`
-    : 'Select a city in the header to calibrate me with live sensor feeds.'
-}
+Current reading: **AQI ${aqiData.aqi}** (${aqiData.category}) with dominant pollutant **${aqiData.dominantPollutant}**${
+      aqiData.pm25 != null ? ` at ${aqiData.pm25} µg/m³` : ''
+    }.
 
-How can I help you and your family navigate air quality today?`,
-    },
-  ]);
+Context calibrated for: **${userProfile.replace(/_/g, ' ')}**. What would you like to know about navigating today's air quality?`;
+  }, [aqiData, userProfile]);
 
+  // Dynamically generated initial prompts derived from live sensor metrics
+  const dynamicInitialPrompts = useMemo(() => {
+    if (!aqiData) return [];
+    const cityShort = aqiData.city.split(',')[0].trim();
+    const pol = aqiData.dominantPollutant || 'PM2.5';
+    const aqi = aqiData.aqi;
+    const profileReadable = userProfile.replace(/_/g, ' ');
+
+    return [
+      `What mask rating is mandatory for AQI ${aqi} in ${cityShort}?`,
+      `Is outdoor physical exertion safe today for ${profileReadable}?`,
+      `How does ${pol} concentration of ${aqiData.pm25 ?? aqi} µg/m³ affect indoor air?`,
+      `Recommended low-emission transit route in ${cityShort} to minimize exposure?`,
+      `Optimal indoor HEPA purifier run protocol for current ${aqiData.category} smog?`,
+    ];
+  }, [aqiData, userProfile]);
+
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>(INITIAL_PROMPTS);
+  const [llmSuggestions, setLlmSuggestions] = useState<string[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef<Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>>([]);
 
+  // Sync initial message when aqiData or profile changes and no conversation has occurred yet
+  useEffect(() => {
+    if (messages.length === 0) {
+      setMessages([{ role: 'assistant', content: initialGreeting }]);
+    }
+  }, [initialGreeting, messages.length]);
+
+  // Auto scroll
   useEffect(() => {
     if (isOpen) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isOpen]);
 
-  // Generate dynamic follow-up suggestions based on conversation context
-  const updateDynamicSuggestions = useCallback((lastResponse: string, aqiVal?: number) => {
-    const text = lastResponse.toLowerCase();
-    const dynamicList: string[] = [];
-
-    if (text.includes('mask') || text.includes('n95')) {
-      dynamicList.push('How often should I replace my N95 mask?');
-      dynamicList.push('Are cloth or surgical masks effective against PM2.5?');
-    }
-    if (text.includes('child') || text.includes('school') || text.includes('kid')) {
-      dynamicList.push('Should schools suspend morning outdoor assembly?');
-      dynamicList.push('Safe indoor play activities during severe smog?');
-    }
-    if (text.includes('purifier') || text.includes('hepa') || text.includes('indoor')) {
-      dynamicList.push('What CADR rating do I need for my room size?');
-      dynamicList.push('Do indoor plants really replace air purifiers?');
-    }
-    if (text.includes('commute') || text.includes('traffic') || text.includes('metro')) {
-      dynamicList.push('Is AC recirculate mode better while driving in smog?');
-      dynamicList.push('How does roadside exposure compare to metro travel?');
-    }
-
-    if (aqiVal && aqiVal > 200) {
-      dynamicList.push('What are early symptoms of acute particulate toxicity?');
-      dynamicList.push('Can steam inhalation or jaggery clear smog particles?');
-    } else {
-      dynamicList.push('Best window opening window for natural ventilation today?');
-    }
-
-    if (dynamicList.length < 3) {
-      dynamicList.push('Natural dietary antioxidants to counteract oxidative smog stress?');
-      dynamicList.push('How does night-time thermal inversion trap ground pollution?');
-    }
-
-    setSuggestions(dynamicList.slice(0, 5));
-  }, []);
+  // Active suggestions: LLM-generated follow-ups if available, otherwise telemetry-derived prompts
+  const activeSuggestions = llmSuggestions.length > 0 ? llmSuggestions : dynamicInitialPrompts;
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || streaming) return;
@@ -109,12 +92,13 @@ How can I help you and your family navigate air quality today?`,
         body: JSON.stringify({
           message: text,
           context: {
-            city: selectedCity || 'Delhi',
-            aqi: aqiData?.aqi || 200,
-            aqiCategory: aqiData?.category || 'Unhealthy',
+            city: aqiData?.city || selectedCity || 'Urban India',
+            aqi: aqiData?.aqi || 150,
+            aqiCategory: aqiData?.category || 'Moderate',
             userProfile,
             pm25: aqiData?.pm25,
             pm10: aqiData?.pm10,
+            dominantPollutant: aqiData?.dominantPollutant,
           },
           history: historyRef.current,
         }),
@@ -122,14 +106,14 @@ How can I help you and your family navigate air quality today?`,
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `Server error ${res.status}`);
+        throw new Error(err.error || `Server responded with ${res.status}`);
       }
 
       const reader = res.body?.getReader();
-      if (!reader) throw new Error('Stream connection unavailable.');
+      if (!reader) throw new Error('Streaming connection unavailable.');
 
       const decoder = new TextDecoder();
-      let accumulated = '';
+      let rawAccumulated = '';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -145,42 +129,64 @@ How can I help you and your family navigate air quality today?`,
             try {
               const parsed = JSON.parse(dataStr);
               if (parsed.text) {
-                accumulated += parsed.text;
+                rawAccumulated += parsed.text;
+
+                // Split display content from <<<SUGGESTIONS>>> delimiter
+                const delimiterIndex = rawAccumulated.indexOf('<<<SUGGESTIONS>>>:');
+                const displayContent = delimiterIndex !== -1
+                  ? rawAccumulated.slice(0, delimiterIndex).trim()
+                  : rawAccumulated;
+
                 setMessages((prev) => {
                   const updated = [...prev];
-                  updated[updated.length - 1] = { role: 'assistant', content: accumulated };
+                  updated[updated.length - 1] = { role: 'assistant', content: displayContent };
                   return updated;
                 });
               }
             } catch {
-              // Ignore partial JSON parses
+              // Ignore partial JSON parses during streaming
             }
           }
         }
       }
 
+      // Extract LLM-generated follow-up questions
+      const delimiterIndex = rawAccumulated.indexOf('<<<SUGGESTIONS>>>:');
+      if (delimiterIndex !== -1) {
+        const suggestionsPart = rawAccumulated.slice(delimiterIndex + 18).trim();
+        const extractedQuestions = suggestionsPart
+          .split('|')
+          .map((q) => q.replace(/^[\[\s]+|[\]\s]+$/g, '').trim())
+          .filter((q) => q.length > 5);
+
+        if (extractedQuestions.length > 0) {
+          setLlmSuggestions(extractedQuestions);
+        }
+      }
+
+      const cleanFinalContent = delimiterIndex !== -1
+        ? rawAccumulated.slice(0, delimiterIndex).trim()
+        : rawAccumulated;
+
       historyRef.current = [
         ...historyRef.current,
         { role: 'user', parts: [{ text }] },
-        { role: 'model', parts: [{ text: accumulated }] },
+        { role: 'model', parts: [{ text: cleanFinalContent }] },
       ];
-
-      // Update auto-suggestions dynamically from LLM output
-      updateDynamicSuggestions(accumulated, aqiData?.aqi);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error reaching assistant';
+      const msg = err instanceof Error ? err.message : 'Error reaching AI assistant';
       setMessages((prev) => {
         const updated = [...prev];
         updated[updated.length - 1] = {
           role: 'assistant',
-          content: `Connection alert: ${msg}. Please ensure your \`GEMINI_API_KEY\` is active.`,
+          content: `Connection alert: ${msg}. Please ensure your \`GEMINI_API_KEY\` is active in \`.env.local\`.`,
         };
         return updated;
       });
     } finally {
       setStreaming(false);
     }
-  }, [streaming, selectedCity, aqiData, userProfile, updateDynamicSuggestions]);
+  }, [streaming, selectedCity, aqiData, userProfile]);
 
   return (
     <>
@@ -301,25 +307,34 @@ How can I help you and your family navigate air quality today?`,
           </div>
 
           {/* Horizontal Scroll Quick Response / Auto-Suggestions Viewport */}
-          <div className="px-3 py-2 border-t border-slate-800/80 bg-slate-950/70">
+          {activeSuggestions.length > 0 && (
+            <div className="px-3 py-2 border-t border-slate-800/80 bg-slate-950/70">
+              <div className="flex items-center justify-between mb-1 text-[10px] text-slate-400 font-semibold px-1">
+                <span className="flex items-center gap-1 text-cyan-400">
+                  <Sparkles className="w-3 h-3" />
+                  <span>AI Inquiries ({llmSuggestions.length > 0 ? 'Live Model Output' : 'Live Sensor Metric'})</span>
+                </span>
+                <span className="text-slate-500 text-[9px]">Scroll horizontally</span>
+              </div>
 
-            <div
-              ref={scrollContainerRef}
-              className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 scroll-smooth"
-            >
-              {suggestions.map((prompt, i) => (
-                <button
-                  key={i}
-                  onClick={() => sendMessage(prompt)}
-                  disabled={streaming}
-                  className="inline-flex items-center gap-1.5 flex-shrink-0 text-[11px] bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-cyan-300 px-3 py-1.5 rounded-xl border border-slate-700/60 hover:border-cyan-500/50 transition-all text-left whitespace-nowrap cursor-pointer shadow-sm group"
-                >
-                  <span>{prompt}</span>
-                  <ChevronRight className="w-3 h-3 opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-cyan-400" />
-                </button>
-              ))}
+              <div
+                ref={scrollContainerRef}
+                className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 scroll-smooth"
+              >
+                {activeSuggestions.map((prompt, i) => (
+                  <button
+                    key={i}
+                    onClick={() => sendMessage(prompt)}
+                    disabled={streaming}
+                    className="inline-flex items-center gap-1.5 flex-shrink-0 text-[11px] bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-cyan-300 px-3 py-1.5 rounded-xl border border-slate-700/60 hover:border-cyan-500/50 transition-all text-left whitespace-nowrap cursor-pointer shadow-sm group"
+                  >
+                    <span>{prompt}</span>
+                    <ChevronRight className="w-3 h-3 opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-cyan-400" />
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Input Row */}
           <div className="p-3 bg-slate-900/95 border-t border-slate-800">
