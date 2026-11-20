@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { getFlashModel } from '@/lib/gemini';
+import { startChatStreamWithFallback } from '@/lib/gemini';
 import type { UserProfile } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -22,8 +22,6 @@ export async function POST(request: NextRequest) {
     const { message, context, history = [] } = body;
     const { city, aqi, aqiCategory, userProfile, pm25, pm10 } = context;
 
-    const model = getFlashModel();
-
     const systemPrompt = `You are "AirSense Assistant", an authoritative yet compassionate environmental health & urban air quality AI advisor for Indian families and municipal communities.
 
 CURRENT REAL-TIME ENVIRONMENTAL CONTEXT:
@@ -40,32 +38,21 @@ CONVERSATION RULES:
 4. Keep responses crisp, actionable, structured with bullet points where helpful, around 3–5 short paragraphs or punchy points.
 5. If medical distress (severe wheezing, chest tightness) is mentioned, explicitly advise consulting a physician or visiting the nearest hospital immediately.`;
 
-    const chat = model.startChat({
-      history: [
-        {
-          role: 'user',
-          parts: [{ text: systemPrompt }],
-        },
-        {
-          role: 'model',
-          parts: [{
-            text: `Understood. I am calibrated with real-time sensor data for ${city} (AQI: ${aqi}, ${aqiCategory}) and tuned for the ${userProfile} profile. I will provide accurate, actionable smog navigation advice.`,
-          }],
-        },
-        ...history,
-      ],
-    });
-
-    const streamResult = await chat.sendMessageStream(message);
+    // Uses multi-model fallback cascade automatically
+    const { stream, modelUsed } = await startChatStreamWithFallback(
+      systemPrompt,
+      history,
+      message
+    );
 
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of streamResult.stream) {
+          for await (const chunk of stream) {
             const chunkText = chunk.text();
             if (chunkText) {
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunkText })}\n\n`));
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: chunkText, model: modelUsed })}\n\n`));
             }
           }
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));

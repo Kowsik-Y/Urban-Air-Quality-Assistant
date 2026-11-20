@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getFlashModel } from '@/lib/gemini';
+import { generateContentWithFallback } from '@/lib/gemini';
 import type { Recommendations, UserProfile } from '@/lib/types';
 
 const PROFILE_LABELS: Record<UserProfile, string> = {
@@ -32,7 +32,6 @@ export async function POST(request: NextRequest) {
     }
 
     const profileLabel = PROFILE_LABELS[userProfile] || PROFILE_LABELS.general;
-    const model = getFlashModel();
 
     const prompt = `You are "AirSense GenAI", an intelligent urban air pollution and severe winter smog navigator for Indian communities.
 
@@ -86,14 +85,14 @@ REQUIREMENTS:
 
 Constraint: Provide exactly 4 high-quality items in each array. Provide exact numeric impact percentages where scientifically sound.`;
 
-    const response = await model.generateContent(prompt);
-    const text = response.response.text().trim();
+    // Uses multi-model fallback cascade automatically
+    const { text, modelUsed } = await generateContentWithFallback(prompt);
 
     // Clean any accidental markdown code fences
     const cleanJson = text.replace(/^```json/i, '').replace(/^```/i, '').replace(/```$/i, '').trim();
     const parsed: Recommendations = JSON.parse(cleanJson);
 
-    return NextResponse.json(parsed);
+    return NextResponse.json({ ...parsed, _modelUsed: modelUsed });
   } catch (err: unknown) {
     console.error('[Recommend Route Error]', err);
     const errorMessage = err instanceof Error ? err.message : 'Failed to generate recommendations.';
