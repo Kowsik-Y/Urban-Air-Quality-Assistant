@@ -1,18 +1,13 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import type { AQIData, City, UserProfile } from '@/lib/types';
 import { ShieldAlert, MapPin, Users, Navigation, Search, X, Loader2, Check } from 'lucide-react';
-import { findNearestCity, searchCities } from '@/lib/cities';
-
-const PROFILES: { value: UserProfile; label: string }[] = [
-  { value: 'general', label: 'General Resident' },
-  { value: 'family_with_kids', label: 'Family with Kids' },
-  { value: 'working_professional', label: 'Working Professional' },
-  { value: 'senior_citizen', label: 'Senior Citizen' },
-  { value: 'student', label: 'Student / Youth' },
-];
+import { findNearestCity } from '@/lib/cities';
+import { USER_PROFILES } from '@/lib/constants';
+import { useClickOutside } from '@/hooks/useClickOutside';
+import { useDebounce } from '@/hooks/useDebounce';
 
 interface HeaderProps {
   cities: City[];
@@ -37,9 +32,19 @@ export default function Header({
   const [isSearchingRemote, setIsSearchingRemote] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [locationNotice, setLocationNotice] = useState<string | null>(null);
+  const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Close dropdown on outside click
+  useClickOutside(dropdownRef, () => {
+    setIsSearchOpen(false);
+    setHighlightedIndex(-1);
+  }, isSearchOpen);
+
+  // Debounced search query
+  const debouncedQuery = useDebounce(searchQuery.trim(), 280);
 
   // Active city object
   const currentCityObj = useMemo(() => {
@@ -50,32 +55,35 @@ export default function Header({
     );
   }, [cities, dynamicCities, selectedCity]);
 
-  // Debounced live multi-source query across local catalog, WAQI search, and Open-Meteo geocoding
+  // Debounced multi-source remote search
   useEffect(() => {
-    if (!searchQuery.trim() || searchQuery.trim().length < 2) {
+    if (!debouncedQuery || debouncedQuery.length < 2) {
       setDynamicCities(cities);
       return;
     }
 
-    const timer = setTimeout(async () => {
-      setIsSearchingRemote(true);
-      try {
-        const res = await fetch(`/api/cities?q=${encodeURIComponent(searchQuery.trim())}`);
-        if (res.ok) {
-          const json = await res.json();
-          if (Array.isArray(json) && json.length > 0) {
-            setDynamicCities(json);
-          }
-        }
-      } catch (err) {
-        console.warn('Dynamic multi-source search fallback:', err);
-      } finally {
-        setIsSearchingRemote(false);
-      }
-    }, 280);
+    let isSubscribed = true;
+    setIsSearchingRemote(true);
 
-    return () => clearTimeout(timer);
-  }, [searchQuery, cities]);
+    fetch(`/api/cities?q=${encodeURIComponent(debouncedQuery)}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((json: City[]) => {
+        if (isSubscribed && Array.isArray(json) && json.length > 0) {
+          setDynamicCities(json);
+          setHighlightedIndex(0);
+        }
+      })
+      .catch((err) => {
+        console.warn('[City Search Error]', err);
+      })
+      .finally(() => {
+        if (isSubscribed) setIsSearchingRemote(false);
+      });
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [debouncedQuery, cities]);
 
   // Filtered cities based on search input
   const filteredCities = useMemo(() => {
@@ -83,30 +91,44 @@ export default function Header({
     return dynamicCities;
   }, [cities, dynamicCities, searchQuery]);
 
-  // Close dropdown on outside click or Escape key
+  const handleSelectCity = useCallback(
+    (val: string) => {
+      onCityChange(val);
+      setIsSearchOpen(false);
+      setSearchQuery('');
+      setHighlightedIndex(-1);
+    },
+    [onCityChange]
+  );
+
+  // Handle keyboard navigation inside the city combobox
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex((prev) =>
+        prev < filteredCities.length - 1 ? prev + 1 : 0
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex((prev) =>
+        prev > 0 ? prev - 1 : filteredCities.length - 1
+      );
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (highlightedIndex >= 0 && filteredCities[highlightedIndex]) {
+        handleSelectCity(filteredCities[highlightedIndex].value);
+      }
+    } else if (e.key === 'Escape') {
+      setIsSearchOpen(false);
+      setHighlightedIndex(-1);
+    }
+  };
+
+  // Focus input when dropdown opens
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setIsSearchOpen(false);
-      }
-    };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setIsSearchOpen(false);
-      }
-    };
-
     if (isSearchOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      window.addEventListener('keydown', handleKeyDown);
       setTimeout(() => searchInputRef.current?.focus(), 80);
     }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
   }, [isSearchOpen]);
 
   // Fallback to fast IP geolocation
@@ -200,12 +222,6 @@ export default function Header({
     }
   };
 
-  const handleSelectCity = (val: string) => {
-    onCityChange(val);
-    setIsSearchOpen(false);
-    setSearchQuery('');
-  };
-
   return (
     <header className="sticky top-0 z-50 glass border-b border-slate-800/80 shadow-2xl backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -293,6 +309,7 @@ export default function Header({
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={handleInputKeyDown}
                     placeholder="Search city, state, or region..."
                     aria-label="Filter Indian cities"
                     className="w-full bg-transparent text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none"
@@ -336,8 +353,9 @@ export default function Header({
                       No matching Indian cities found for &quot;{searchQuery}&quot;.
                     </div>
                   ) : (
-                    filteredCities.map((city) => {
+                    filteredCities.map((city, idx) => {
                       const isSelected = city.value.toLowerCase() === selectedCity.toLowerCase();
+                      const isHighlighted = idx === highlightedIndex;
                       return (
                         <button
                           key={city.value}
@@ -348,6 +366,8 @@ export default function Header({
                           className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-xs sm:text-sm transition-all cursor-pointer ${
                             isSelected
                               ? 'bg-cyan-950/50 text-cyan-300 font-bold border border-cyan-500/40'
+                              : isHighlighted
+                              ? 'bg-slate-800 text-cyan-200 border border-slate-600'
                               : 'text-slate-300 hover:bg-slate-800/70 hover:text-white'
                           }`}
                         >
@@ -378,8 +398,8 @@ export default function Header({
               aria-label="Select Target Household Profile"
               className="w-full pl-9 pr-8 py-2 bg-slate-900/90 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-slate-100 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400 transition-all appearance-none cursor-pointer shadow-inner"
             >
-              {PROFILES.map((p) => (
-                <option key={p.value} value={p.value}>
+              {USER_PROFILES.map((p) => (
+                <option key={p.value} value={p.value} title={p.description}>
                   {p.label}
                 </option>
               ))}

@@ -5,6 +5,7 @@ import type { AQIData, ChatMessage, UserProfile } from '@/lib/types';
 import { Send, Bot, User, Sparkles, MessageSquareQuote, X, ChevronRight, RotateCcw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { SESSION_KEYS, getSessionStorage, setSessionStorage } from '@/lib/storage';
+import { consumeChatStream } from '@/lib/chat-stream';
 
 interface FloatingChatDrawerProps {
   selectedCity: string;
@@ -190,64 +191,20 @@ Context calibrated for: **${userProfile.replace(/_/g, ' ')}**. What would you li
         throw new Error(err.error || `Server responded with ${res.status}`);
       }
 
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error('Streaming connection unavailable.');
+      if (!res.body) throw new Error('Streaming connection unavailable.');
 
-      const decoder = new TextDecoder();
-      let rawAccumulated = '';
+      const { text: cleanFinalContent, suggestions: extractedQuestions } =
+        await consumeChatStream(res.body, (displayContent) => {
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { role: 'assistant', content: displayContent };
+            return updated;
+          });
+        });
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const dataStr = line.slice(6).trim();
-            if (dataStr === '[DONE]') break;
-            try {
-              const parsed = JSON.parse(dataStr);
-              if (parsed.text) {
-                rawAccumulated += parsed.text;
-
-                // Split display content from <<<SUGGESTIONS>>> delimiter
-                const delimiterIndex = rawAccumulated.indexOf('<<<SUGGESTIONS>>>:');
-                const displayContent = delimiterIndex !== -1
-                  ? rawAccumulated.slice(0, delimiterIndex).trim()
-                  : rawAccumulated;
-
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  updated[updated.length - 1] = { role: 'assistant', content: displayContent };
-                  return updated;
-                });
-              }
-            } catch {
-              // Ignore partial JSON parses during streaming
-            }
-          }
-        }
+      if (extractedQuestions.length > 0) {
+        setLlmSuggestions(extractedQuestions);
       }
-
-      // Extract LLM-generated follow-up questions
-      const delimiterIndex = rawAccumulated.indexOf('<<<SUGGESTIONS>>>:');
-      if (delimiterIndex !== -1) {
-        const suggestionsPart = rawAccumulated.slice(delimiterIndex + 18).trim();
-        const extractedQuestions = suggestionsPart
-          .split('|')
-          .map((q) => q.replace(/^[\[\s]+|[\]\s]+$/g, '').trim())
-          .filter((q) => q.length > 5);
-
-        if (extractedQuestions.length > 0) {
-          setLlmSuggestions(extractedQuestions);
-        }
-      }
-
-      const cleanFinalContent = delimiterIndex !== -1
-        ? rawAccumulated.slice(0, delimiterIndex).trim()
-        : rawAccumulated;
 
       const updatedHistory: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [
         ...historyRef.current,
