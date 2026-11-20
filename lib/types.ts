@@ -23,7 +23,7 @@ export interface Recommendation {
   title: string;
   description: string;
   impact: string;
-  icon: string;
+  icon?: string;
 }
 
 export interface Recommendations {
@@ -43,6 +43,8 @@ export interface City {
   value: string;
   label: string;
   state?: string;
+  lat?: number;
+  lon?: number;
 }
 
 export interface ChatMessage {
@@ -58,4 +60,4 @@ export type UserProfile =
   | 'student'
   | 'general';
 
-export type TabId = 'dashboard' | 'recommendations' | 'planner' | 'indoor' | 'chat';
+export type TabId = 'dashboard' | 'recommendations' | 'planner' | 'indoor';

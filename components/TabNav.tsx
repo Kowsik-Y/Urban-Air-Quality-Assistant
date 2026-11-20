@@ -2,7 +2,7 @@
 
 import React from 'react';
 import type { TabId } from '@/lib/types';
-import { Activity, Sparkles, CalendarClock, Home, MessageSquareQuote } from 'lucide-react';
+import { Activity, Sparkles, CalendarClock, Home } from 'lucide-react';
 
 interface TabNavProps {
   activeTab: TabId;
@@ -14,7 +14,6 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'recommendations', label: 'AI Lifestyle & Impact', icon: <Sparkles className="w-4 h-4" /> },
   { id: 'planner', label: 'Smog Daily Planner', icon: <CalendarClock className="w-4 h-4" /> },
   { id: 'indoor', label: 'Indoor Clean Air Hacks', icon: <Home className="w-4 h-4" /> },
-  { id: 'chat', label: 'AirSense Copilot', icon: <MessageSquareQuote className="w-4 h-4" /> },
 ];
 
 export default function TabNav({ activeTab, onTabChange }: TabNavProps) {
@@ -27,7 +26,7 @@ export default function TabNav({ activeTab, onTabChange }: TabNavProps) {
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
-              className={`flex items-center gap-2 py-3 px-4 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap transition-all duration-200 ${
+              className={`flex items-center gap-2 py-3 px-5 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap transition-all duration-200 ${
                 isActive
                   ? 'border-cyan-400 text-cyan-300 bg-cyan-950/20'
                   : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/40'

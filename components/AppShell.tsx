@@ -8,10 +8,9 @@ import AQIDashboard from './AQIDashboard';
 import RecommendationCards from './RecommendationCards';
 import DailyPlanner from './DailyPlanner';
 import IndoorGuide from './IndoorGuide';
-import ChatAssistant from './ChatAssistant';
 import LoadingState from './LoadingState';
 import FloatingChatDrawer from './FloatingChatDrawer';
-import { Wind, AlertCircle, RefreshCw, Sparkles, MapPin, Shield } from 'lucide-react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 
 interface AppShellProps {
   initialCities: City[];
@@ -36,7 +35,7 @@ export default function AppShell({ initialCities }: AppShellProps) {
     setError(null);
 
     try {
-      // 1. Fetch real-time live sensor AQI from WAQI API
+      // 1. Fetch real-time live sensor AQI
       const aqiRes = await fetch(`/api/aqi?city=${encodeURIComponent(city)}`);
       const aqiJson = await aqiRes.json();
 
@@ -109,7 +108,7 @@ export default function AppShell({ initialCities }: AppShellProps) {
         aqiData={aqiData}
       />
 
-      {/* Tabs */}
+      {/* Tabs (Main navigation for monitor, routines, planner, indoor) */}
       <TabNav activeTab={activeTab} onTabChange={setActiveTab} />
 
       {/* Main Content Area */}
@@ -153,18 +152,11 @@ export default function AppShell({ initialCities }: AppShellProps) {
             {activeTab === 'indoor' && (
               <IndoorGuide recommendations={recommendations} loading={loadingRecs} />
             )}
-            {activeTab === 'chat' && (
-              <ChatAssistant
-                selectedCity={selectedCity}
-                aqiData={aqiData}
-                userProfile={userProfile}
-              />
-            )}
           </div>
         )}
       </main>
 
-      {/* Floating AirSense Copilot Chat Action Button & Drawer */}
+      {/* Floating AI AirSense Chat Action Button & Drawer */}
       <FloatingChatDrawer
         selectedCity={selectedCity}
         aqiData={aqiData}
@@ -176,12 +168,12 @@ export default function AppShell({ initialCities }: AppShellProps) {
       {/* Persistent Status Bar */}
       <footer className="border-t border-slate-900 bg-slate-950/80 py-4 px-4 text-center text-xs text-slate-600">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>AirSense Urban Air Quality Assistant · Prompt Wars Challenge 6</span>
+          <span>AI AirSense Urban Air Quality Assistant - Prompt Wars Challenge 6</span>
           <div className="flex items-center gap-4 text-slate-500">
-            <span>Real-time CPCB / WAQI</span>
-            <span>•</span>
+            <span>Real-time CAAQMS Telemetry</span>
+            <span>-</span>
             <span>Google Gemini 2.5 Flash</span>
-            <span>•</span>
+            <span>-</span>
             <span>Zero Hardcoded Metrics</span>
           </div>
         </div>
