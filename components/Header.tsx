@@ -33,6 +33,8 @@ export default function Header({
 }: HeaderProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [dynamicCities, setDynamicCities] = useState<City[]>(cities);
+  const [isSearchingRemote, setIsSearchingRemote] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [locationNotice, setLocationNotice] = useState<string | null>(null);
 
@@ -42,15 +44,44 @@ export default function Header({
   // Active city object
   const currentCityObj = useMemo(() => {
     return (
+      dynamicCities.find((c) => c.value.toLowerCase() === selectedCity.toLowerCase()) ||
       cities.find((c) => c.value.toLowerCase() === selectedCity.toLowerCase()) ||
       cities[0]
     );
-  }, [cities, selectedCity]);
+  }, [cities, dynamicCities, selectedCity]);
+
+  // Debounced live multi-source query across local catalog, WAQI search, and Open-Meteo geocoding
+  useEffect(() => {
+    if (!searchQuery.trim() || searchQuery.trim().length < 2) {
+      setDynamicCities(cities);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingRemote(true);
+      try {
+        const res = await fetch(`/api/cities?q=${encodeURIComponent(searchQuery.trim())}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (Array.isArray(json) && json.length > 0) {
+            setDynamicCities(json);
+          }
+        }
+      } catch (err) {
+        console.warn('Dynamic multi-source search fallback:', err);
+      } finally {
+        setIsSearchingRemote(false);
+      }
+    }, 280);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, cities]);
 
   // Filtered cities based on search input
   const filteredCities = useMemo(() => {
-    return searchCities(searchQuery, cities);
-  }, [cities, searchQuery]);
+    if (!searchQuery.trim()) return cities;
+    return dynamicCities;
+  }, [cities, dynamicCities, searchQuery]);
 
   // Close dropdown on outside click or Escape key
   useEffect(() => {
@@ -90,10 +121,30 @@ export default function Header({
     setLocationNotice('Requesting browser GPS coordinates...');
 
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         const { latitude, longitude } = pos.coords;
-        const { city: nearest, distanceKm } = findNearestCity(latitude, longitude, cities);
 
+        try {
+          const res = await fetch(`/api/cities?lat=${latitude}&lon=${longitude}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.city) {
+              const liveStation: City = data.city;
+              onCityChange(liveStation.value);
+              setIsLocating(false);
+              setIsSearchOpen(false);
+              setSearchQuery('');
+              const distanceText = data.distanceKm ? ` (~${data.distanceKm} km away)` : '';
+              setLocationNotice(`Connected to live monitor: ${liveStation.label} (${liveStation.state || 'Local Station'})${distanceText}`);
+              setTimeout(() => setLocationNotice(null), 5000);
+              return;
+            }
+          }
+        } catch (fetchErr) {
+          console.warn('Live station resolution fallback:', fetchErr);
+        }
+
+        const { city: nearest, distanceKm } = findNearestCity(latitude, longitude, cities);
         onCityChange(nearest.value);
         setIsLocating(false);
         setIsSearchOpen(false);
@@ -213,6 +264,9 @@ export default function Header({
                     aria-label="Filter Indian cities"
                     className="w-full bg-transparent text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none"
                   />
+                  {isSearchingRemote && (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400 flex-shrink-0" />
+                  )}
                   {searchQuery && (
                     <button
                       type="button"

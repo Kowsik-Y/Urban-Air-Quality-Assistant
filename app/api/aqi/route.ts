@@ -20,7 +20,7 @@ interface WaqiResponse {
       co?: { v: number };
     };
     time?: { iso: string };
-    city?: { name: string; url: string };
+    city?: { name: string; url: string; geo?: [number, number] };
   };
 }
 
@@ -37,21 +37,58 @@ interface OpenMeteoResponse {
   };
 }
 
+interface OpenMeteoGeocoding {
+  results?: Array<{
+    name: string;
+    latitude: number;
+    longitude: number;
+    admin1?: string;
+    country?: string;
+  }>;
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  // Input sanitization: limit length and strip control chars
-  const rawQuery = (searchParams.get('city') || 'delhi').slice(0, 50).replace(/[^\w\s-]/gi, '');
-  const cityQuery = rawQuery.toLowerCase().trim();
-
-  const cityEntry = CITIES.find(
-    (c) => c.value.toLowerCase() === cityQuery || c.label.toLowerCase().includes(cityQuery)
-  ) || CITIES[0];
+  const rawCity = searchParams.get('city') || 'delhi';
+  const latParam = searchParams.get('lat');
+  const lonParam = searchParams.get('lon');
 
   const token = process.env.WAQI_TOKEN || 'bd1171e7da3d8014d4c00e6d046938a02cdc4df4';
 
-  // 1. Direct query to live CPCB station network via user's WAQI token through proxy layer
+  let targetLat: number | null = latParam ? parseFloat(latParam) : null;
+  let targetLon: number | null = lonParam ? parseFloat(lonParam) : null;
+  let targetQuery = rawCity.trim();
+  let displayCityLabel = targetQuery;
+  let displayState = '';
+
+  // Check if geo:lat,lon format
+  if (targetQuery.startsWith('geo:')) {
+    const coords = targetQuery.replace('geo:', '').split(',').map(Number);
+    if (!isNaN(coords[0]) && !isNaN(coords[1])) {
+      targetLat = coords[0];
+      targetLon = coords[1];
+    }
+  }
+
+  // Check if matched in local curated catalog
+  const catalogMatch = CITIES.find(
+    (c) => c.value.toLowerCase() === targetQuery.toLowerCase() || c.label.toLowerCase() === targetQuery.toLowerCase()
+  );
+
+  if (catalogMatch) {
+    targetQuery = catalogMatch.value;
+    displayCityLabel = catalogMatch.label;
+    displayState = catalogMatch.state || '';
+    if (targetLat == null) targetLat = catalogMatch.lat ?? null;
+    if (targetLon == null) targetLon = catalogMatch.lon ?? null;
+  }
+
+  // 1. Live Telemetry from WAQI / CAAQMS
   try {
-    const waqiUrl = `https://api.waqi.info/feed/${encodeURIComponent(cityEntry.value)}/?token=${token}`;
+    const waqiUrl = targetLat != null && targetLon != null && (rawCity.startsWith('geo:') || latParam)
+      ? `https://api.waqi.info/feed/geo:${targetLat};${targetLon}/?token=${token}`
+      : `https://api.waqi.info/feed/${encodeURIComponent(targetQuery)}/?token=${token}`;
+
     const { data: json, fromCache } = await safeFetchJson<WaqiResponse>(waqiUrl, {
       ttlSeconds: 300,
       timeoutMs: 6000,
@@ -64,8 +101,12 @@ export async function GET(request: NextRequest) {
       const aqi = Math.max(10, Math.min(500, rawAqi));
       const cat = getAQICategory(aqi);
 
+      const stationFullName = d.city?.name || displayCityLabel;
+      const parsedCity = stationFullName.split(',')[0].trim();
+      const parsedState = stationFullName.split(',')[1]?.trim() || displayState;
+
       const result: AQIData = {
-        city: `${cityEntry.label}${cityEntry.state ? `, ${cityEntry.state}` : ''}`,
+        city: `${parsedCity}${parsedState ? `, ${parsedState}` : ''}`,
         aqi,
         dominantPollutant: (d.dominentpol || 'pm25').toUpperCase(),
         pm25: d.iaqi?.pm25?.v ?? null,
@@ -75,7 +116,7 @@ export async function GET(request: NextRequest) {
         o3: d.iaqi?.o3?.v ?? null,
         co: d.iaqi?.co?.v ?? null,
         timestamp: d.time?.iso || new Date().toISOString(),
-        station: d.city?.name || `${cityEntry.label} CAAQMS Regional Monitor`,
+        station: d.city?.name || `${displayCityLabel} CAAQMS Regional Monitor`,
         source: 'Continuous Ambient Air Quality Monitoring (CAAQMS) & WAQI Network',
         sourceUrl: d.city?.url || 'https://waqi.info',
         ...cat,
@@ -87,15 +128,38 @@ export async function GET(request: NextRequest) {
       return res;
     }
   } catch (waqiErr) {
-    console.warn('[WAQI Proxy Fetch Failed, attempting Open-Meteo]', waqiErr);
+    console.warn('[WAQI Dynamic Telemetry Failed, attempting Open-Meteo]', waqiErr);
   }
 
-  // 2. High-precision atmospheric telemetry fallback via Open-Meteo through proxy layer
-  const lat = cityEntry.lat || 28.6139;
-  const lon = cityEntry.lon || 77.2090;
+  // 2. Open-Meteo Fallback: if coordinates missing for a custom city, geocode dynamically
+  if (targetLat == null || targetLon == null) {
+    try {
+      const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
+        targetQuery
+      )}&count=1&language=en&format=json`;
+      const { data: geoData } = await safeFetchJson<OpenMeteoGeocoding>(geoUrl, {
+        ttlSeconds: 600,
+        timeoutMs: 4000,
+      });
+
+      if (geoData?.results && geoData.results.length > 0) {
+        const topResult = geoData.results[0];
+        targetLat = topResult.latitude;
+        targetLon = topResult.longitude;
+        displayCityLabel = topResult.name;
+        displayState = topResult.admin1 || topResult.country || '';
+      }
+    } catch (geoErr) {
+      console.warn('[Dynamic Geocoding Failed]', geoErr);
+    }
+  }
+
+  // If still missing coordinates, default to Delhi NCR baseline
+  const finalLat = targetLat ?? 28.6139;
+  const finalLon = targetLon ?? 77.2090;
 
   try {
-    const openMeteoUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone,us_aqi`;
+    const openMeteoUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${finalLat}&longitude=${finalLon}&current=pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone,us_aqi`;
     const { data, fromCache } = await safeFetchJson<OpenMeteoResponse>(openMeteoUrl, {
       ttlSeconds: 300,
       timeoutMs: 6000,
@@ -113,7 +177,7 @@ export async function GET(request: NextRequest) {
       if ((curr.nitrogen_dioxide || 0) > 120) dom = 'NO2';
 
       const result: AQIData = {
-        city: `${cityEntry.label}${cityEntry.state ? `, ${cityEntry.state}` : ''}`,
+        city: `${displayCityLabel}${displayState ? `, ${displayState}` : ''}`,
         aqi,
         dominantPollutant: dom,
         pm25: curr.pm2_5 != null ? Math.round(curr.pm2_5 * 10) / 10 : null,
@@ -123,7 +187,7 @@ export async function GET(request: NextRequest) {
         o3: curr.ozone != null ? Math.round(curr.ozone * 10) / 10 : null,
         co: curr.carbon_monoxide != null ? Math.round((curr.carbon_monoxide / 1000) * 10) / 10 : null,
         timestamp: curr.time || new Date().toISOString(),
-        station: `${cityEntry.label} Environmental Telemetry Station`,
+        station: `${displayCityLabel} Environmental Telemetry Station`,
         source: 'Continuous Ambient Air Quality Monitoring (CAAQMS)',
         sourceUrl: 'https://cpcb.nic.in/',
         ...cat,
@@ -135,14 +199,14 @@ export async function GET(request: NextRequest) {
       return res;
     }
   } catch (err) {
-    console.error('[Open-Meteo Proxy Fallback Failed]', err);
+    console.error('[Open-Meteo Dynamic Fallback Failed]', err);
   }
 
   // 3. Graceful degradation: CPCB standard seasonal regional baseline
   const baselineAQI = 145;
   const cat = getAQICategory(baselineAQI);
   const fallbackResult: AQIData = {
-    city: `${cityEntry.label}${cityEntry.state ? `, ${cityEntry.state}` : ''}`,
+    city: `${displayCityLabel}${displayState ? `, ${displayState}` : ''}`,
     aqi: baselineAQI,
     dominantPollutant: 'PM2.5',
     pm25: 58.2,
@@ -152,7 +216,7 @@ export async function GET(request: NextRequest) {
     o3: 28.5,
     co: 1.1,
     timestamp: new Date().toISOString(),
-    station: `${cityEntry.label} CAAQMS Regional Monitor (Reconnecting)`,
+    station: `${displayCityLabel} CAAQMS Regional Monitor (Reconnecting)`,
     source: 'CPCB Winter Inversion Baseline (Reconnecting)',
     sourceUrl: 'https://cpcb.nic.in/',
     isFallback: true,
