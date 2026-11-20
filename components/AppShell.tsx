@@ -267,7 +267,7 @@ export default function AppShell({ initialCities }: AppShellProps) {
       <TabNav activeTab={activeTab} onTabChange={handleTabChange} />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8 pb-24">
+      <main id="main-content" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8 pb-24 focus:outline-none">
         {loadingAQI ? (
           <LoadingState />
         ) : error ? (
@@ -281,7 +281,7 @@ export default function AppShell({ initialCities }: AppShellProps) {
             </p>
             <button
               onClick={() => loadData(selectedCity, userProfile)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs sm:text-sm shadow-lg shadow-cyan-600/30 transition-all"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs sm:text-sm shadow-lg shadow-cyan-600/30 transition-all cursor-pointer"
             >
               <RefreshCw className="w-4 h-4" />
               <span>Retry Live Connection</span>
@@ -316,6 +316,20 @@ export default function AppShell({ initialCities }: AppShellProps) {
           </div>
         )}
       </main>
+
+      {/* Accessible Footer aligned with Problem Statement standards */}
+      <footer className="border-t border-slate-800/70 py-6 px-4 sm:px-6 text-center text-xs text-slate-500 bg-slate-950/80">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p>
+            AirSense Environmental Diagnostics &copy; {new Date().getFullYear()}. Data sourced via Central Pollution Control Board (CPCB) CAAQMS & WAQI networks.
+          </p>
+          <div className="flex items-center gap-4 text-[11px] text-slate-400">
+            <span>NAAQS Aligned</span>
+            <span>GRAP I-IV Protocols</span>
+            <span>Gemini 3.5 Flash Powered</span>
+          </div>
+        </div>
+      </footer>
 
       {/* Floating AI AirSense Chat Action Button & Drawer */}
       <FloatingChatDrawer
