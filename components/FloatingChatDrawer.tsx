@@ -27,9 +27,8 @@ export default function FloatingChatDrawer({
     }
     return `Hello. I am **AI AirSense**, calibrated with live telemetry from **${aqiData.station}** in **${aqiData.city}**.
 
-Current reading: **AQI ${aqiData.aqi}** (${aqiData.category}) with dominant pollutant **${aqiData.dominantPollutant}**${
-      aqiData.pm25 != null ? ` at ${aqiData.pm25} µg/m³` : ''
-    }.
+Current reading: **AQI ${aqiData.aqi}** (${aqiData.category}) with dominant pollutant **${aqiData.dominantPollutant}**${aqiData.pm25 != null ? ` at ${aqiData.pm25} µg/m³` : ''
+      }.
 
 Context calibrated for: **${userProfile.replace(/_/g, ' ')}**. What would you like to know about navigating today's air quality?`;
   }, [aqiData, userProfile]);
@@ -57,7 +56,22 @@ Context calibrated for: **${userProfile.replace(/_/g, ' ')}**. What would you li
   const [llmSuggestions, setLlmSuggestions] = useState<string[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const historyRef = useRef<Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>>([]);
+
+  // Auto focus input and support Escape key dismissal when drawer opens
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => inputRef.current?.focus(), 100);
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          onToggle();
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isOpen, onToggle]);
 
   // Sync initial message when aqiData or profile changes and no conversation has occurred yet
   useEffect(() => {
@@ -193,8 +207,10 @@ Context calibrated for: **${userProfile.replace(/_/g, ' ')}**. What would you li
       {/* Floating Action Button (Always Visible) */}
       <button
         onClick={onToggle}
-        aria-label="Toggle AI AirSense Chat"
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold rounded-full shadow-2xl shadow-cyan-500/40 hover:shadow-cyan-500/60 transform hover:scale-105 transition-all duration-300 group cursor-pointer border border-cyan-300/40"
+        aria-label="Toggle AI AirSense Chat Assistant"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold rounded-full shadow-2xl shadow-cyan-500/40 hover:shadow-cyan-500/60 transform hover:scale-105 transition-all duration-300 group cursor-pointer border border-cyan-300/40 focus:outline-none focus-visible:ring-4 focus-visible:ring-cyan-400"
       >
         <div className="relative">
           <MessageSquareQuote className="w-5 h-5 text-slate-950 group-hover:rotate-6 transition-transform" />
@@ -216,19 +232,23 @@ Context calibrated for: **${userProfile.replace(/_/g, ' ')}**. What would you li
 
       {/* Floating Chat Modal / Drawer */}
       {isOpen && (
-        <div className="fixed bottom-24 right-4 sm:right-6 z-50 w-[94vw] sm:w-[440px] h-[580px] max-h-[82vh] glass-card rounded-3xl border border-cyan-500/30 shadow-2xl shadow-black/90 flex flex-col overflow-hidden animate-fade-in backdrop-blur-2xl">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="chat-drawer-title"
+          className="fixed bottom-24 right-4 sm:right-6 z-50 w-[94vw] sm:w-[440px] h-[580px] max-h-[82vh] glass-card rounded-3xl border border-cyan-500/30 shadow-2xl shadow-black/90 flex flex-col overflow-hidden animate-fade-in backdrop-blur-2xl"
+        >
           {/* Header */}
           <div className="px-5 py-3.5 bg-slate-900/95 border-b border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-slate-950 font-bold shadow">
-                <Bot className="w-4 h-4" />
+                <MessageSquareQuote className="w-4 h-4" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h4 className="text-xs font-bold text-white tracking-tight">AI AirSense</h4>
-                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-cyan-950 text-cyan-400 border border-cyan-800">
-                    Live Telemetry
-                  </span>
+                  <h4 id="chat-drawer-title" className="text-xs font-bold text-white tracking-tight">
+                    AI AirSense
+                  </h4>
                 </div>
                 <p className="text-[10px] text-slate-400 font-medium line-clamp-1">
                   {aqiData ? `${aqiData.city} (AQI: ${aqiData.aqi})` : 'Urban Smog Assistant'}
@@ -239,7 +259,8 @@ Context calibrated for: **${userProfile.replace(/_/g, ' ')}**. What would you li
             <div className="flex items-center gap-1">
               <button
                 onClick={onToggle}
-                className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors cursor-pointer"
+                className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+                aria-label="Close AI AirSense"
                 title="Close AI AirSense"
               >
                 <X className="w-4 h-4" />
@@ -257,21 +278,19 @@ Context calibrated for: **${userProfile.replace(/_/g, ' ')}**. What would you li
                   className={`flex items-start gap-2.5 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
                 >
                   <div
-                    className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 text-xs shadow ${
-                      isUser
+                    className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 text-xs shadow ${isUser
                         ? 'bg-blue-600 text-white'
                         : 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white'
-                    }`}
+                      }`}
                   >
-                    {isUser ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
+                    {isUser ? <User className="w-3.5 h-3.5" /> : <MessageSquareQuote className="w-3.5 h-3.5" />}
                   </div>
 
                   <div
-                    className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs leading-relaxed shadow ${
-                      isUser
+                    className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs leading-relaxed shadow ${isUser
                         ? 'bg-blue-600 text-white rounded-tr-none'
                         : 'bg-slate-900/90 border border-slate-800 text-slate-200 rounded-tl-none'
-                    }`}
+                      }`}
                   >
                     {m.content ? (
                       <div className="space-y-1.5 break-words">
@@ -309,13 +328,6 @@ Context calibrated for: **${userProfile.replace(/_/g, ' ')}**. What would you li
           {/* Horizontal Scroll Quick Response / Auto-Suggestions Viewport */}
           {activeSuggestions.length > 0 && (
             <div className="px-3 py-2 border-t border-slate-800/80 bg-slate-950/70">
-              <div className="flex items-center justify-between mb-1 text-[10px] text-slate-400 font-semibold px-1">
-                <span className="flex items-center gap-1 text-cyan-400">
-                  <Sparkles className="w-3 h-3" />
-                  <span>AI Inquiries ({llmSuggestions.length > 0 ? 'Live Model Output' : 'Live Sensor Metric'})</span>
-                </span>
-                <span className="text-slate-500 text-[9px]">Scroll horizontally</span>
-              </div>
 
               <div
                 ref={scrollContainerRef}
@@ -346,17 +358,20 @@ Context calibrated for: **${userProfile.replace(/_/g, ' ')}**. What would you li
               className="flex items-center gap-2"
             >
               <input
+                ref={inputRef}
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask about masks, purifier settings, commute..."
+                aria-label="Air quality question or instruction"
                 disabled={streaming}
                 className="flex-1 bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/40 focus:border-cyan-400 transition-all disabled:opacity-50"
               />
               <button
                 type="submit"
                 disabled={streaming || !input.trim()}
-                className="p-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 rounded-xl font-bold shadow disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                aria-label="Send Message"
+                className="p-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 rounded-xl font-bold shadow disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
                 title="Send Message"
               >
                 <Send className="w-3.5 h-3.5" />

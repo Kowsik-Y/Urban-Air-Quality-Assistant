@@ -1,18 +1,20 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { startChatStreamWithFallback } from '@/lib/gemini';
 import type { UserProfile } from '@/lib/types';
 
 export const runtime = 'nodejs';
 
+const MAX_MESSAGE_LENGTH = 1000;
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as {
-      message: string;
-      context: {
-        city: string;
-        aqi: number;
-        aqiCategory: string;
-        userProfile: UserProfile;
+      message?: string;
+      context?: {
+        city?: string;
+        aqi?: number;
+        aqiCategory?: string;
+        userProfile?: UserProfile;
         pm25?: number | null;
         pm10?: number | null;
         dominantPollutant?: string;
@@ -20,13 +22,34 @@ export async function POST(request: NextRequest) {
       history?: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>;
     };
 
-    const { message, context, history = [] } = body;
-    const { city, aqi, aqiCategory, userProfile, pm25, pm10, dominantPollutant } = context;
+    const rawMessage = body.message || '';
+    if (!rawMessage.trim()) {
+      return NextResponse.json({ error: 'Message cannot be empty.' }, { status: 400 });
+    }
+
+    if (rawMessage.length > MAX_MESSAGE_LENGTH) {
+      return NextResponse.json(
+        { error: `Message exceeds maximum allowed length of ${MAX_MESSAGE_LENGTH} characters.` },
+        { status: 400 }
+      );
+    }
+
+    // Sanitize user message
+    const message = rawMessage.trim();
+    const context = body.context || {};
+    const city = (context.city || 'Urban India').slice(0, 60);
+    const aqi = Math.max(0, Math.min(500, Number(context.aqi) || 150));
+    const aqiCategory = (context.aqiCategory || 'Moderate').slice(0, 30);
+    const userProfile = context.userProfile || 'general';
+    const pm25 = context.pm25 != null ? Math.round(Number(context.pm25)) : null;
+    const pm10 = context.pm10 != null ? Math.round(Number(context.pm10)) : null;
+    const dominantPollutant = (context.dominantPollutant || 'PM2.5').slice(0, 10);
+    const history = Array.isArray(body.history) ? body.history.slice(-10) : [];
 
     const systemPrompt = `You are "AI AirSense", an environmental health & urban air quality AI advisor for Indian communities.
 
 LIVE SENSOR CONTEXT:
-- City/Station: ${city || 'Urban India'}
+- City/Station: ${city}
 - Real-time AQI: ${aqi} (${aqiCategory})
 ${pm25 != null ? `- PM2.5: ${pm25} µg/m³` : ''}
 ${pm10 != null ? `- PM10: ${pm10} µg/m³` : ''}
@@ -61,8 +84,9 @@ These questions must be highly specific follow-ups to what you just explained an
           }
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
-        } catch (streamError) {
-          controller.error(streamError);
+        } catch (streamErr) {
+          console.error('[Chat Streaming Error]', streamErr);
+          controller.error(streamErr);
         }
       },
     });
@@ -71,12 +95,12 @@ These questions must be highly specific follow-ups to what you just explained an
       headers: {
         'Content-Type': 'text/event-stream; charset=utf-8',
         'Cache-Control': 'no-cache, no-transform',
-        'Connection': 'keep-alive',
+        Connection: 'keep-alive',
       },
     });
   } catch (err: unknown) {
-    console.error('[Chat API Error]', err);
-    const errorMessage = err instanceof Error ? err.message : 'Chat streaming failure';
-    return Response.json({ error: errorMessage }, { status: 500 });
+    console.error('[Chat Route Error]', err);
+    const message = err instanceof Error ? err.message : 'Chat initialization failed';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

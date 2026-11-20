@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { AQIData, ChatMessage, UserProfile } from '@/lib/types';
-import { Send, Bot, User, Sparkles } from 'lucide-react';
+import { Send, Bot, User, Sparkles, MessageSquareQuote } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface ChatAssistantProps {
@@ -24,11 +24,10 @@ export default function ChatAssistant({ selectedCity, aqiData, userProfile }: Ch
       role: 'assistant',
       content: `Hello! I am **AI AirSense**, your real-time smog & environmental health assistant for **${selectedCity || 'Urban India'}**.
 
-${
-  aqiData
-    ? `Current Station AQI: **${aqiData.aqi}** (${aqiData.category}) in **${aqiData.city}**. Dominant pollutant: **${aqiData.dominantPollutant}**.`
-    : 'Select a city in the header to calibrate me with live sensor feeds.'
-}
+${aqiData
+          ? `Current Station AQI: **${aqiData.aqi}** (${aqiData.category}) in **${aqiData.city}**. Dominant pollutant: **${aqiData.dominantPollutant}**.`
+          : 'Select a city in the header to calibrate me with live sensor feeds.'
+        }
 
 Ask me anything regarding mask protocols, school/commute navigation, clean-room ventilation, or low-emission routines!`,
     },
@@ -160,21 +159,19 @@ Ask me anything regarding mask protocols, school/commute navigation, clean-room 
               className={`flex items-start gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
             >
               <div
-                className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-sm shadow ${
-                  isUser
+                className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-sm shadow ${isUser
                     ? 'bg-blue-600 text-white'
                     : 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white'
-                }`}
+                  }`}
               >
-                {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+                {isUser ? <User className="w-4 h-4" /> : <MessageSquareQuote className="w-4 h-4" />}
               </div>
 
               <div
-                className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-5 py-3.5 text-xs sm:text-sm leading-relaxed shadow-lg ${
-                  isUser
+                className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-5 py-3.5 text-xs sm:text-sm leading-relaxed shadow-lg ${isUser
                     ? 'bg-blue-600 text-white rounded-tr-none'
                     : 'bg-slate-900/90 border border-slate-800 text-slate-200 rounded-tl-none'
-                }`}
+                  }`}
               >
                 {m.content ? (
                   <div className="space-y-1.5 break-words">

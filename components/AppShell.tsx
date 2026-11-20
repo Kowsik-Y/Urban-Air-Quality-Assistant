@@ -137,7 +137,13 @@ export default function AppShell({ initialCities }: AppShellProps) {
             Please pick a city from the selector above to display live station analytics.
           </div>
         ) : (
-          <div>
+          <div
+            role="tabpanel"
+            id={`tabpanel-${activeTab}`}
+            aria-labelledby={`tab-${activeTab}`}
+            tabIndex={0}
+            className="focus:outline-none"
+          >
             {activeTab === 'dashboard' && <AQIDashboard aqiData={aqiData} />}
             {activeTab === 'recommendations' && (
               <RecommendationCards

@@ -67,6 +67,7 @@ export default function Header({
             <select
               value={selectedCity}
               onChange={(e) => onCityChange(e.target.value)}
+              aria-label="Select Indian Urban Center"
               className="w-full pl-9 pr-8 py-2 bg-slate-900/90 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-slate-100 font-medium focus:outline-none focus:ring-2 focus:ring-cyan-500/40 focus:border-cyan-400 transition-all appearance-none cursor-pointer shadow-inner"
             >
               <option value="" disabled>Select City (Live Sensors)...</option>
@@ -84,6 +85,7 @@ export default function Header({
             <select
               value={userProfile}
               onChange={(e) => onProfileChange(e.target.value as UserProfile)}
+              aria-label="Select Target Household Profile"
               className="w-full pl-9 pr-8 py-2 bg-slate-900/90 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-slate-100 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400 transition-all appearance-none cursor-pointer shadow-inner"
             >
               {PROFILES.map((p) => (

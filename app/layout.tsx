@@ -1,11 +1,41 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'AirSense — Urban Air Quality & Winter Smog Assistant',
   description:
-    'A GenAI-powered assistant helping Indian families and communities navigate severe winter smog with live CPCB/WAQI data and Gemini 1.5 Flash.',
-  keywords: ['Air Quality', 'Smog', 'AQI', 'Delhi Smog', 'Winter Pollution', 'Gemini AI', 'CPCB'],
+    'A GenAI-powered assistant helping Indian families and communities navigate severe winter smog with live CPCB/WAQI data and Gemini 2.5 Flash.',
+  keywords: [
+    'Air Quality',
+    'Winter Smog',
+    'AQI Delhi',
+    'CPCB NAAQS',
+    'PM2.5 Exposure',
+    'AirSense',
+    'Gemini AI',
+    'Clean Air Hacks',
+  ],
+  authors: [{ name: 'AirSense Engineering Team' }],
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+    ],
+    apple: '/icon.svg',
+    shortcut: '/icon.svg',
+  },
+  openGraph: {
+    title: 'AirSense — Urban Air Quality & Winter Smog Assistant',
+    description: 'Empowering Indian urban households against severe winter smog with live CAAQMS telemetry and GenAI.',
+    type: 'website',
+    locale: 'en_IN',
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#020617',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
 };
 
 export default function RootLayout({
