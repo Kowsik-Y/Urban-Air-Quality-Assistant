@@ -13,6 +13,7 @@ const ALLOWED_DOMAINS = new Set([
   'api.waqi.info',
   'air-quality-api.open-meteo.com',
   'geocoding-api.open-meteo.com',
+  'ipwho.is',
   'cpcb.nic.in',
   'generativelanguage.googleapis.com',
 ]);

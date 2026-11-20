@@ -10,8 +10,9 @@ import DailyPlanner from './DailyPlanner';
 import IndoorGuide from './IndoorGuide';
 import LoadingState from './LoadingState';
 import FloatingChatDrawer from './FloatingChatDrawer';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw, Navigation } from 'lucide-react';
 import { SESSION_KEYS, getSessionStorage, setSessionStorage } from '@/lib/storage';
+import { findNearestCity } from '@/lib/cities';
 
 interface AppShellProps {
   initialCities: City[];
@@ -27,6 +28,7 @@ export default function AppShell({ initialCities }: AppShellProps) {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [isFloatingChatOpen, setIsFloatingChatOpen] = useState<boolean>(false);
+  const [locationToast, setLocationToast] = useState<string | null>(null);
   const isHydratedRef = useRef(false);
 
   const loadData = useCallback(async (city: string, profile: UserProfile) => {
@@ -123,6 +125,72 @@ export default function AppShell({ initialCities }: AppShellProps) {
     }
   }, [loadData]);
 
+  // Auto-request location permission on entry; fallback to IP geolocation if denied
+  useEffect(() => {
+    const calibrated = getSessionStorage<string | null>(SESSION_KEYS.LOCATION_CALIBRATED, null);
+    if (calibrated) return;
+
+    if (typeof window !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords;
+          try {
+            const res = await fetch(`/api/cities?lat=${latitude}&lon=${longitude}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data?.city) {
+                const liveCity = data.city;
+                setSelectedCity(liveCity.value);
+                setSessionStorage(SESSION_KEYS.CITY, liveCity.value);
+                setSessionStorage(SESSION_KEYS.LOCATION_CALIBRATED, 'gps');
+                loadData(liveCity.value, userProfile);
+                setLocationToast(`GPS granted: Connected to live monitor: ${liveCity.label}`);
+                setTimeout(() => setLocationToast(null), 5000);
+                return;
+              }
+            }
+          } catch {}
+
+          const { city: nearest } = findNearestCity(latitude, longitude, initialCities);
+          setSelectedCity(nearest.value);
+          setSessionStorage(SESSION_KEYS.CITY, nearest.value);
+          setSessionStorage(SESSION_KEYS.LOCATION_CALIBRATED, 'gps');
+          loadData(nearest.value, userProfile);
+          setLocationToast(`GPS granted: Calibrated to nearest monitor: ${nearest.label}`);
+          setTimeout(() => setLocationToast(null), 5000);
+        },
+        async (err) => {
+          console.warn('[Location Permission Declined]', err.message);
+          // FALLBACK TO IP LOCATION IF GPS DENIED
+          try {
+            const ipRes = await fetch('/api/cities?ip=1');
+            if (ipRes.ok) {
+              const ipData = await ipRes.json();
+              if (ipData?.success && ipData.city) {
+                const ipCity = ipData.city;
+                setSelectedCity(ipCity.value);
+                setSessionStorage(SESSION_KEYS.CITY, ipCity.value);
+                setSessionStorage(SESSION_KEYS.LOCATION_CALIBRATED, 'ip');
+                loadData(ipCity.value, userProfile);
+                setLocationToast(
+                  `GPS declined. Auto-detected approximate location via IP: ${ipCity.label}${
+                    ipData.detectedCity ? ` (${ipData.detectedCity})` : ''
+                  }`
+                );
+                setTimeout(() => setLocationToast(null), 5000);
+                return;
+              }
+            }
+          } catch (ipErr) {
+            console.warn('[IP Location Fallback Failed]', ipErr);
+          }
+          setSessionStorage(SESSION_KEYS.LOCATION_CALIBRATED, 'default');
+        },
+        { timeout: 8000, enableHighAccuracy: false, maximumAge: 300000 }
+      );
+    }
+  }, [loadData, userProfile, initialCities]);
+
   const handleCityChange = (city: string) => {
     setSelectedCity(city);
     setSessionStorage(SESSION_KEYS.CITY, city);
@@ -161,6 +229,18 @@ export default function AppShell({ initialCities }: AppShellProps) {
         onProfileChange={handleProfileChange}
         aqiData={aqiData}
       />
+
+      {/* Auto Location Toast Notification */}
+      {locationToast && (
+        <aside
+          role="status"
+          aria-live="polite"
+          className="bg-cyan-950/90 border-b border-cyan-500/40 px-4 py-2 text-center text-xs text-cyan-200 flex items-center justify-center gap-2 animate-fade-in backdrop-blur-md shadow-md z-40"
+        >
+          <Navigation className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0 animate-pulse" />
+          <span className="font-medium">{locationToast}</span>
+        </aside>
+      )}
 
       {/* Tabs (Main navigation for monitor, routines, planner, indoor) */}
       <TabNav activeTab={activeTab} onTabChange={handleTabChange} />

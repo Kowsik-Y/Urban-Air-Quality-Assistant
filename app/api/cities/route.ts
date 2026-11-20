@@ -45,8 +45,70 @@ export async function GET(request: NextRequest) {
   const q = searchParams.get('q')?.trim() || '';
   const latStr = searchParams.get('lat');
   const lonStr = searchParams.get('lon');
+  const isIpRequest = searchParams.get('ip') === '1';
 
   const token = process.env.WAQI_TOKEN || 'bd1171e7da3d8014d4c00e6d046938a02cdc4df4';
+
+  // 1. Resolve location from client IP address
+  if (isIpRequest) {
+    const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0].trim();
+    const realIp = request.headers.get('x-real-ip')?.trim();
+    const rawIp = forwarded || realIp || '';
+
+    const isPrivateIp = (ip: string) =>
+      ip === '127.0.0.1' ||
+      ip === '::1' ||
+      ip === 'localhost' ||
+      ip.startsWith('10.') ||
+      ip.startsWith('192.168.') ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip) ||
+      ip.startsWith('fc00:') ||
+      ip.startsWith('fe80:');
+
+    const targetUrl = rawIp && !isPrivateIp(rawIp)
+      ? `https://ipwho.is/${encodeURIComponent(rawIp)}`
+      : 'https://ipwho.is/';
+
+    try {
+      const { data } = await safeFetchJson<{
+        success: boolean;
+        city?: string;
+        region?: string;
+        latitude?: number;
+        longitude?: number;
+        ip?: string;
+      }>(targetUrl, {
+        ttlSeconds: 900,
+        timeoutMs: 4000,
+      });
+
+      if (data?.success && data.latitude != null && data.longitude != null) {
+        const { city: nearest, distanceKm } = findNearestCity(
+          data.latitude,
+          data.longitude,
+          CITIES
+        );
+
+        return NextResponse.json({
+          success: true,
+          city: nearest,
+          distanceKm,
+          detectedCity: data.city || 'Unknown',
+          detectedRegion: data.region || 'India',
+          ip: data.ip,
+          source: 'ip_geolocation',
+        });
+      }
+    } catch (err) {
+      console.warn('[IP Location Resolution Failed]', err);
+    }
+
+    return NextResponse.json({
+      success: false,
+      city: CITIES[0],
+      source: 'baseline_default',
+    });
+  }
 
   // 1. Resolve exact nearest monitoring station from GPS coordinates
   if (latStr && lonStr) {

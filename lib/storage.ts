@@ -15,6 +15,7 @@ export const SESSION_KEYS = {
   CHAT_HISTORY: 'airsense_session_chat_history',
   CHAT_SUGGESTIONS: 'airsense_session_chat_suggestions',
   DRAWER_OPEN: 'airsense_session_drawer_open',
+  LOCATION_CALIBRATED: 'airsense_location_calibrated',
   TELEMETRY_PREFIX: 'airsense_cache_aqi_',
   RECS_PREFIX: 'airsense_cache_recs_',
 } as const;
