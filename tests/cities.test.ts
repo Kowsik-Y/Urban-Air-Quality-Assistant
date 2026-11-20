@@ -1,10 +1,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { CITIES } from '../lib/cities';
+import { CITIES, findNearestCity, searchCities, haversineDistance } from '../lib/cities';
 
 describe('Indian Cities Dataset Integrity', () => {
-  it('contains at least 20 major Indian urban centers', () => {
-    assert.ok(CITIES.length >= 20, `Expected at least 20 cities, got ${CITIES.length}`);
+  it('contains over 40 major Indian urban centers across states', () => {
+    assert.ok(CITIES.length >= 40, `Expected at least 40 cities, got ${CITIES.length}`);
   });
 
   it('ensures Delhi NCR is present as primary baseline city', () => {
@@ -36,5 +36,34 @@ describe('Indian Cities Dataset Integrity', () => {
     const slugs = CITIES.map((c) => c.value);
     const uniqueSlugs = new Set(slugs);
     assert.strictEqual(slugs.length, uniqueSlugs.size, 'All city slugs must be unique');
+  });
+});
+
+describe('Geolocation & Proximity Resolver', () => {
+  it('correctly calculates Haversine distance between known coordinates', () => {
+    // Delhi (28.6139, 77.2090) to Noida (28.5355, 77.3910) is roughly 20 km
+    const dist = haversineDistance(28.6139, 77.2090, 28.5355, 77.3910);
+    assert.ok(dist > 15 && dist < 25, `Expected distance ~20km, got ${dist}`);
+  });
+
+  it('resolves the nearest Indian urban monitor from browser coordinates', () => {
+    // Coordinates near Connaught Place, New Delhi
+    const nearestDelhi = findNearestCity(28.6315, 77.2167);
+    assert.strictEqual(nearestDelhi.city.value, 'delhi');
+    assert.ok(nearestDelhi.distanceKm < 10);
+
+    // Coordinates near Bandra, Mumbai
+    const nearestMumbai = findNearestCity(19.0596, 72.8295);
+    assert.strictEqual(nearestMumbai.city.value, 'mumbai');
+    assert.ok(nearestMumbai.distanceKm < 15);
+  });
+
+  it('filters cities by query string across name and state', () => {
+    const punjabCities = searchCities('punjab');
+    assert.ok(punjabCities.length >= 3, 'Should find multiple cities in Punjab');
+
+    const noidaMatch = searchCities('noida');
+    assert.strictEqual(noidaMatch.length, 1);
+    assert.strictEqual(noidaMatch[0].value, 'noida');
   });
 });
